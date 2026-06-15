@@ -14,7 +14,7 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.reactive import reactive
 from textual.widgets import (
     Button, Header, Input, Label,
-    RichLog, Rule, Select, Static, Switch, TabbedContent, TabPane,
+    Rule, Select, Static, Switch, TabbedContent, TabPane, TextArea,
 )
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -302,7 +302,13 @@ class GemiTUI(App):
         background: $boost;
         padding: 0 1;
     }
-    #service-log { height: 1fr; padding: 0 1; }
+    #service-log {
+        height: 1fr;
+        padding: 0 1;
+    }
+    #service-log.read-only {
+        border: none;
+    }
 
     #status-bar {
         dock: bottom;
@@ -343,7 +349,7 @@ class GemiTUI(App):
                     yield MatrixTab()
             with Vertical(id="right-panel"):
                 yield Static("SERVICE LOG", id="log-header")
-                yield RichLog(id="service-log", highlight=True, markup=False)
+                yield TextArea("", id="service-log", read_only=True, language=None)
         yield Static("", id="status-bar")
 
     def on_mount(self) -> None:
@@ -378,7 +384,13 @@ class GemiTUI(App):
 
     def _append_log(self, line: str) -> None:
         try:
-            self.query_one("#service-log", RichLog).write(line)
+            ta = self.query_one("#service-log", TextArea)
+            # Move cursor to end and insert the new line
+            end = ta.document.end
+            ta.move_cursor(end)
+            ta.insert(line + "\n")
+            # Auto-scroll to the bottom
+            ta.scroll_end(animate=False)
         except Exception:
             pass
 
