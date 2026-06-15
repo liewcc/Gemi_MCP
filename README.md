@@ -1,5 +1,7 @@
 # Gemi_MCP
 
+**English** | [简体中文](README.zh-CN.md)
+
 Drive the **Gemini web UI** with browser automation — **no API key, no billing**. It logs
 into your normal Google account in a real browser and generates text and images for you.
 
