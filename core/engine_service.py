@@ -1,5 +1,26 @@
 import sys
 import os
+import warnings
+
+# Silence the Python 3.16 deprecation notices for the Windows asyncio policy calls
+# below. We still need WindowsProactorEventLoopPolicy for subprocess support, so
+# suppress only these two specific messages rather than all DeprecationWarnings.
+warnings.filterwarnings(
+    "ignore",
+    message=r".*asyncio\.(WindowsProactorEventLoopPolicy|set_event_loop_policy).*",
+    category=DeprecationWarning,
+)
+
+# When launched as a subprocess with a piped stdout (e.g. by the TUI), Python
+# defaults to block-buffering stdout, so print() output is held back and never
+# shown line-by-line. Switch stdout/stderr to line buffering so every print()
+# (lifespan, [ENGINE], [AUTO], _log_debug, etc.) is flushed on each newline.
+try:
+    sys.stdout.reconfigure(line_buffering=True)
+    sys.stderr.reconfigure(line_buffering=True)
+except Exception:
+    pass
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import asyncio
 import time

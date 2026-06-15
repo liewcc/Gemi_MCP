@@ -438,20 +438,62 @@ class GemiTUI(App):
         self.set_interval(4, self._poll_status)
         self.set_interval(2, self._poll_engine_logs)
         self._start_and_stream_service()
+        self._engine_autostart()
 
     # ─── Service process management ───────────────────────────────────────────
 
-    @work(thread=True)
+    def _kill_leftover_engine(self) -> bool:
+        """taskkill any process LISTENING on port 18800. Returns True if one was killed."""
+        import subprocess
+        killed = False
+        try:
+            out = subprocess.check_output(
+                ["netstat", "-ano"], text=True, stderr=subprocess.DEVNULL
+            )
+            for line in out.splitlines():
+                if ":18800" in line and "LISTENING" in line:
+                    pid = line.split()[-1]
+                    subprocess.run(
+                        ["taskkill", "/F", "/PID", pid],
+                        check=False,
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    )
+                    killed = True
+                    break
+        except Exception:
+            pass
+        return killed
+
+    @work(thread=True, group="svc_stream", exclusive=True)
     def _start_and_stream_service(self) -> None:
-        import socket, subprocess, sys
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            already_up = s.connect_ex(("127.0.0.1", 18800)) == 0
-        if already_up:
-            self.call_from_thread(self._append_log, "[engine service already running on port 18800]")
-            return
+        import socket, subprocess, sys, time
+
+        def _port_open() -> bool:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                return s.connect_ex(("127.0.0.1", 18800)) == 0
+
+        if _port_open():
+            # A leftover engine (e.g. from a crash or Ctrl+C) still holds the port.
+            # Kill it and spawn our own so we always have a live stdout stream to
+            # display, instead of silently short-circuiting with no log output.
+            self.call_from_thread(
+                self._append_log,
+                "[engine service already running on port 18800 — killing leftover and respawning...]",
+            )
+            self._kill_leftover_engine()
+            # Wait (up to ~5s) for the port to actually free before we bind it.
+            for _ in range(20):
+                time.sleep(0.25)
+                if not _port_open():
+                    break
+            else:
+                self.call_from_thread(
+                    self._append_log,
+                    "[warning: port 18800 still in use after kill; spawn may fail]",
+                )
         CREATE_NO_WINDOW = 0x08000000
         self._service_proc = subprocess.Popen(
-            [sys.executable, str(ROOT / "core" / "engine_service.py")],
+            [sys.executable, "-u", str(ROOT / "core" / "engine_service.py")],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             cwd=str(ROOT / "core"),
@@ -475,8 +517,14 @@ class GemiTUI(App):
         except Exception:
             pass
 
-    @work(exclusive=True)
+    @work(exclusive=True, group="poll_logs")
     async def _poll_engine_logs(self) -> None:
+        # When we spawned the engine ourselves we already stream its stdout
+        # (which now mirrors every _log_debug line), so polling would duplicate
+        # those lines. Only poll as a fallback when the engine was already
+        # running externally and we have no stdout stream to read.
+        if self._service_proc is not None:
+            return
         try:
             async with httpx.AsyncClient() as c:
                 r = await c.get(f"{ENGINE_URL}/engine/logs", timeout=2.0)
@@ -487,7 +535,7 @@ class GemiTUI(App):
 
     # ─── Status (subtitle) ────────────────────────────────────────────────────
 
-    @work(exclusive=True)
+    @work(exclusive=True, group="poll_status")
     async def _poll_status(self) -> None:
         try:
             async with httpx.AsyncClient() as client:
@@ -571,6 +619,36 @@ class GemiTUI(App):
             self._delete_account(event.button.name or "")
 
     # ─── Engine workers ───────────────────────────────────────────────────────
+
+    @work(group="autostart", exclusive=True)
+    async def _engine_autostart(self) -> None:
+        # Honour the "auto_start_browser" setting: once the freshly-spawned
+        # engine service is reachable, log in automatically. This mirrors a
+        # manual Restart, so the startup login actions stream into the SERVICE
+        # LOG instead of nothing happening until the user clicks Restart.
+        if not load_config().get("auto_start_browser", True):
+            return
+        # Wait (up to ~30s) for our engine service to finish booting.
+        for _ in range(60):
+            await asyncio.sleep(0.5)
+            try:
+                async with httpx.AsyncClient() as c:
+                    r = await c.get(f"{ENGINE_URL}/health", timeout=2.0)
+                if r.status_code == 200:
+                    # Skip if a browser session is already running.
+                    if r.json().get("engine_running"):
+                        return
+                    break
+            except Exception:
+                pass
+        else:
+            return
+        self.notify("Auto-starting browser...", timeout=3)
+        try:
+            async with httpx.AsyncClient() as c:
+                await c.post(f"{ENGINE_URL}/engine/start", json={}, timeout=60)
+        except Exception as e:
+            self.notify(f"Auto-start failed: {e}", severity="error")
 
     @work
     async def _engine_restart(self) -> None:
@@ -669,7 +747,6 @@ class GemiTUI(App):
         self.exit()
 
     async def _shutdown_service(self) -> None:
-        import subprocess
         try:
             async with httpx.AsyncClient() as c:
                 await c.post(f"{ENGINE_URL}/engine/stop", timeout=5)
@@ -682,21 +759,8 @@ class GemiTUI(App):
                 pass
             self._service_proc = None
         else:
-            # Fallback: service was already running before TUI started
-            try:
-                out = subprocess.check_output(
-                    ["netstat", "-ano"], text=True, stderr=subprocess.DEVNULL
-                )
-                for line in out.splitlines():
-                    if ":18800" in line and "LISTENING" in line:
-                        pid = line.split()[-1]
-                        subprocess.run(
-                            ["taskkill", "/F", "/PID", pid],
-                            check=False, stderr=subprocess.DEVNULL,
-                        )
-                        break
-            except Exception:
-                pass
+            # Fallback: service was already running before TUI started.
+            self._kill_leftover_engine()
 
     async def action_reload_config(self) -> None:
         for tab_cls in (EngineTab, AutomationTab, OutputTab, AccountsTab, MatrixTab):

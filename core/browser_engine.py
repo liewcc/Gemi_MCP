@@ -570,7 +570,11 @@ class BrowserEngine:
         timestamp = datetime.now().strftime("[%H:%M:%S]")
         # Standardize prefix for the UI backend logs
         log_msg = f"{timestamp} API>> {msg}"
-        
+
+        # Mirror to stdout so the console / TUI SERVICE LOG shows these too,
+        # not just the engine.log file and the in-memory queue.
+        print(log_msg, flush=True)
+
         # Add to internal queue for API consumption
         if not hasattr(self, '_log_queue'):
              self._log_queue = []
