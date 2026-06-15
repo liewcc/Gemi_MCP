@@ -23,6 +23,83 @@ from config_utils import load_config, load_login_lookup, save_config, save_login
 
 ENGINE_URL = "http://127.0.0.1:18800"
 
+
+# ─── Windows Job Object: tie engine lifetime to this process ──────────────────
+def _create_kill_on_close_job():
+    """Create a Windows Job Object whose assigned processes are killed when the
+    last handle to the job closes. Since this (TUI) process holds the only
+    handle, the engine dies automatically when the TUI exits for *any* reason —
+    graceful quit, window 'X' close, or crash. Returns the job handle, or None
+    on non-Windows / failure."""
+    if sys.platform != "win32":
+        return None
+    import ctypes
+    from ctypes import wintypes
+
+    JobObjectExtendedLimitInformation = 9
+    JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x2000
+
+    class JOBOBJECT_BASIC_LIMIT_INFORMATION(ctypes.Structure):
+        _fields_ = [
+            ("PerProcessUserTimeLimit", ctypes.c_int64),
+            ("PerJobUserTimeLimit", ctypes.c_int64),
+            ("LimitFlags", wintypes.DWORD),
+            ("MinimumWorkingSetSize", ctypes.c_size_t),
+            ("MaximumWorkingSetSize", ctypes.c_size_t),
+            ("ActiveProcessLimit", wintypes.DWORD),
+            ("Affinity", ctypes.c_size_t),
+            ("PriorityClass", wintypes.DWORD),
+            ("SchedulingClass", wintypes.DWORD),
+        ]
+
+    class IO_COUNTERS(ctypes.Structure):
+        _fields_ = [(n, ctypes.c_uint64) for n in (
+            "ReadOperationCount", "WriteOperationCount", "OtherOperationCount",
+            "ReadTransferCount", "WriteTransferCount", "OtherTransferCount",
+        )]
+
+    class JOBOBJECT_EXTENDED_LIMIT_INFORMATION(ctypes.Structure):
+        _fields_ = [
+            ("BasicLimitInformation", JOBOBJECT_BASIC_LIMIT_INFORMATION),
+            ("IoInfo", IO_COUNTERS),
+            ("ProcessMemoryLimit", ctypes.c_size_t),
+            ("JobMemoryLimit", ctypes.c_size_t),
+            ("PeakProcessMemoryUsed", ctypes.c_size_t),
+            ("PeakJobMemoryUsed", ctypes.c_size_t),
+        ]
+
+    k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    k32.CreateJobObjectW.restype = wintypes.HANDLE
+    k32.CreateJobObjectW.argtypes = [wintypes.LPVOID, wintypes.LPCWSTR]
+    k32.SetInformationJobObject.restype = wintypes.BOOL
+    k32.SetInformationJobObject.argtypes = [
+        wintypes.HANDLE, ctypes.c_int, wintypes.LPVOID, wintypes.DWORD]
+
+    job = k32.CreateJobObjectW(None, None)
+    if not job:
+        return None
+    info = JOBOBJECT_EXTENDED_LIMIT_INFORMATION()
+    info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+    if not k32.SetInformationJobObject(
+        job, JobObjectExtendedLimitInformation,
+        ctypes.byref(info), ctypes.sizeof(info),
+    ):
+        k32.CloseHandle(job)
+        return None
+    return job
+
+
+def _assign_process_to_job(job, proc) -> None:
+    """Assign a subprocess.Popen process to the given Job Object handle."""
+    if job is None or sys.platform != "win32":
+        return
+    import ctypes
+    from ctypes import wintypes
+    k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    k32.AssignProcessToJobObject.restype = wintypes.BOOL
+    k32.AssignProcessToJobObject.argtypes = [wintypes.HANDLE, wintypes.HANDLE]
+    k32.AssignProcessToJobObject(job, int(proc._handle))
+
 # ─── Config key maps ──────────────────────────────────────────────────────────
 
 _SWITCH_MAP: dict[str, str] = {
@@ -332,6 +409,9 @@ class GemiTUI(App):
         super().__init__()
         self._mounted = False
         self._service_proc = None
+        # Job Object keeps the engine bound to this process — if the TUI is
+        # killed via the window 'X' (no action_quit), the OS kills the engine.
+        self._job = _create_kill_on_close_job()
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -377,6 +457,7 @@ class GemiTUI(App):
             cwd=str(ROOT / "core"),
             creationflags=CREATE_NO_WINDOW,
         )
+        _assign_process_to_job(self._job, self._service_proc)
         self.call_from_thread(self._append_log, "[engine service started]")
         for raw in iter(self._service_proc.stdout.readline, b""):
             line = raw.decode("utf-8", errors="replace").rstrip()
