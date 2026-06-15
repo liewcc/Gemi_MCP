@@ -7,5 +7,11 @@ fastapi
 uvicorn[standard]
 httpx
 
-# MCP Server (to be added)
-# mcp
+# Image Processing
+Pillow
+
+# MCP Server
+mcp[cli]
+
+# TUI
+textual

@@ -1454,6 +1454,94 @@ class BrowserEngine:
         return {"status": "timeout", "message": "Timed out waiting for image response."}
 
 
+    async def send_chat(self, prompt: str) -> dict:
+        """Sends a text prompt to Gemini and waits for the text reply."""
+        if not self.is_running:
+            raise Exception("Browser Engine not started")
+
+        # Record how many model responses already exist before we submit
+        existing_count = await self._page.evaluate('''() => {
+            const all = Array.from(document.querySelectorAll('model-response, structured-content-container.model-response-text, message-content'));
+            return all.filter(el => !all.some(p => p !== el && p.contains(el))).length;
+        }''')
+        self._log_debug(f"send_chat: existing responses before submit = {existing_count}")
+
+        await self.send_prompt(prompt)
+        await self._page.keyboard.press("Enter")
+        self._log_debug("send_chat: prompt submitted.")
+
+        await asyncio.sleep(0.8)
+        still_has_text = await self._page.evaluate('''() => {
+            const editor = document.querySelector(".ql-editor, div[aria-label='Enter a prompt for Gemini'], div[aria-label='Enter a prompt here']");
+            return !!(editor && editor.innerText && editor.innerText.trim().length > 0);
+        }''')
+        if still_has_text:
+            try:
+                btn = self._page.locator(
+                    'gem-icon-button.submit button[aria-label="Send message"], '
+                    'gem-icon-button.send-button button[aria-label="Send message"], '
+                    'button[aria-label="Send message"]'
+                ).first
+                if await btn.is_visible(timeout=2000):
+                    await btn.click()
+                    self._log_debug("send_chat: fallback button click sent.")
+            except Exception:
+                pass
+
+        # Wait for a NEW response to appear and its content to stabilize.
+        # Strategy: look for response count > existing_count, then wait until
+        # .response-footer.complete is present on the last response OR the
+        # text has been unchanged for 3 consecutive 2-second polls (6s stable).
+        last_text = ""
+        stable_count = 0
+        STABLE_NEEDED = 3
+
+        for i in range(120):  # 240s max
+            data = await self._page.evaluate(f'''() => {{
+                const all = Array.from(document.querySelectorAll('model-response, structured-content-container.model-response-text, message-content'));
+                const responses = all.filter(el => !all.some(p => p !== el && p.contains(el)));
+
+                if (responses.length <= {existing_count}) {{
+                    return {{ status: 'waiting', text: '' }};
+                }}
+
+                const lastResp = responses[responses.length - 1];
+                const contentNode = lastResp.querySelector('.model-response-text') ||
+                                    lastResp.querySelector('.message-content') || lastResp;
+                const cl = contentNode.cloneNode(true);
+                cl.querySelectorAll('.cdk-visually-hidden,[aria-hidden="true"]').forEach(function(e){{ e.remove(); }});
+                const text = cl.innerText.trim();
+
+                const isComplete = !!lastResp.querySelector('.response-footer.complete');
+                return {{ status: 'has_response', text: text, complete: isComplete }};
+            }}''')
+
+            status = data.get("status")
+            if status == "waiting":
+                if i % 5 == 0:
+                    self._log_debug(f"send_chat: waiting for new response... (iter {i})")
+            elif status == "has_response":
+                text = data.get("text", "")
+                is_complete = data.get("complete", False)
+
+                if is_complete and text:
+                    self._log_debug(f"send_chat: complete footer detected ({len(text)} chars).")
+                    return {"status": "success", "text": text}
+
+                if text and text == last_text:
+                    stable_count += 1
+                    self._log_debug(f"send_chat: text stable {stable_count}/{STABLE_NEEDED} ({len(text)} chars)")
+                    if stable_count >= STABLE_NEEDED:
+                        return {"status": "success", "text": text}
+                else:
+                    stable_count = 0
+
+                last_text = text
+
+            await asyncio.sleep(2)
+
+        return {"status": "timeout", "message": "Timed out waiting for text response."}
+
     async def redo_response(self):
         """
         Triggers Gemini's redo (regenerate) action.

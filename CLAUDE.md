@@ -8,8 +8,9 @@ these free web-based AI services.
 
 ## 2. Language Rules
 
-- **UI / code:** All labels, comments, and docstrings in **English**.
-- **Chat:** Communicate with the user in **Chinese**, mixing English for technical terms.
+- **Chat:** Communicate with the user in **Chinese**, mixing in English for technical terms.
+- **Code comments / docstrings:** **English** only.
+- **Documentation & explanation files** (`*.md`, design notes, `HANDOFF.md`, etc.): **English** only.
 
 ## 3. Directory Layout
 
@@ -37,3 +38,20 @@ mcp/
 
 - Before applying any edit, verify bracket/brace balance.
 - Prefer rewriting entire functions over patching for structural changes.
+
+## 6. Session Handoff Protocol (会话交接协议 — IMPORTANT)
+
+This project may be worked on alternately by **Claude Code** and **Google Antigravity**.
+The two AIs share NO memory — the only shared state is the git repo + `HANDOFF.md`.
+
+1. **At session start (开工第一件事):**
+   - Read `HANDOFF.md`.
+   - Run `git log --oneline -15` to see what the previous AI actually did.
+   - Do NOT assume state from memory — trust `HANDOFF.md` + git history.
+
+2. **Before ending a session, or when quota is about to run out (收工前 / 额度快用完):**
+   - Commit your work with a clear message.
+   - Update `HANDOFF.md`: Done / In Progress / Next Steps / Decisions.
+   - Sign the "Last Updated" line with your name + date.
+
+3. `HANDOFF.md` is the single source of truth for progress. Keep it short and current.

@@ -1568,6 +1568,21 @@ async def submit_response(req: PromptRequest | None = None):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/browser/chat")
+async def send_chat(req: PromptRequest):
+    if not engine.is_running:
+        raise HTTPException(status_code=400, detail="Engine not running")
+    if engine.automation_status.get("is_running"):
+        raise HTTPException(status_code=409, detail="Automation is running; stop it before using chat.")
+    try:
+        engine._stop_automation_event.clear()
+        result = await engine.send_chat(req.text)
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/engine/profiles")
 async def get_profiles():
     from config_utils import load_login_lookup
@@ -2098,4 +2113,4 @@ async def clear_upscaler_logs():
 if __name__ == "__main__":
     # The _silence_proactor_pipe_errors handler is already installed on the
     # event loop above (at module load time), so uvicorn will inherit it.
-    uvicorn.run(app, host="127.0.0.1", port=18000, access_log=False)
+    uvicorn.run(app, host="127.0.0.1", port=18800, access_log=False)
