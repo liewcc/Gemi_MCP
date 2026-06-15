@@ -40,3 +40,8 @@ prompts.json
 
 # Claude Code local settings
 .claude/
+
+# AI agent instruction / handoff files (local only, never commit)
+CLAUDE.md
+HANDOFF.md
+AGENTS.md
