@@ -1,5 +1,5 @@
 @echo off
-title Gemi Engine Control — TUI
+title Gemi Engine Control - TUI
 cd /d "%~dp0"
 
 python tui/app.py
