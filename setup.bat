@@ -39,9 +39,11 @@ echo ============================================
 echo  Setup complete!
 echo.
 echo  Next steps:
-echo  1. Run run_engine.bat to start the engine service
-echo  2. A browser window will open - log in to your Google account
-echo  3. Add the MCP server to your AI client:
+echo  1. Double-click run.bat to open the control panel (TUI).
+echo  2. Go to the Accounts tab - Add account (registration mode).
+echo     A browser window opens - log in to your Google account, then
+echo     press ctrl+r to reload.
+echo  3. (Optional) Connect the MCP server to your AI client:
 echo       python mcp/server.py
 echo ============================================
 echo.
