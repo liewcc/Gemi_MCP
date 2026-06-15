@@ -1,0 +1,22 @@
+# Browser session data (contains account cookies — never commit)
+core/browser_session_sandbox/
+core/browser_user_data/
+
+# Config and user data (contains account info)
+data/config.json
+data/user_login_lookup.json
+data/*.json
+data/*.log
+
+# Logs and runtime files
+*.log
+core/*.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.env
+
+# IDE
+.vscode/

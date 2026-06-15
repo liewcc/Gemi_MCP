@@ -1,0 +1,11 @@
+# Browser Engine
+playwright
+psutil
+
+# API Service
+fastapi
+uvicorn[standard]
+httpx
+
+# MCP Server (to be added)
+# mcp
