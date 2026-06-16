@@ -193,10 +193,41 @@ class EngineTab(VerticalScroll):
         avail_models: list[str] = disc.get("available_models", [])
         avail_tools:  list[str] = disc.get("available_tools", [])
 
+        # ── ENGINE OPERATIONS (mirrors GemiPersonaPro_DT setup panel) ──
+        yield Label("ENGINE OPERATIONS", classes="section-title")
+        yield Rule()
+        with Horizontal(classes="action-row"):
+            yield Button("Start Engine",  id="btn-toggle-engine",  variant="primary")
+            yield Button("Start Browser", id="btn-toggle-browser", variant="primary")
+        yield SettingRow("◎  Headless mode",      Switch(c.get("headless", True),             id="sw-headless"))
+        yield SettingRow("▷  Auto-start browser", Switch(c.get("auto_start_browser", True),   id="sw-auto_start"))
+        yield SettingRow("↺  Auto-continue loop", Switch(c.get("auto_continue_loop", False),  id="sw-auto_continue"))
+
+        # ── ACCOUNT ACTIONS (mirrors GemiPersonaPro_DT setup panel) ──
+        accounts     = load_login_lookup()
+        active       = c.get("active_user") or "none"
+        profile_opts = [(u["username"], u["username"]) for u in accounts if u.get("username")]
+
+        yield Label("ACCOUNT ACTIONS", classes="section-title")
+        yield Rule()
+        with Horizontal(classes="acct-status-row"):
+            yield Label("Active profile:", classes="acct-status-label")
+            yield Label(active, id="engine-active-profile", classes="acct-status-value")
+            yield Button("🔍 Check status", id="btn-check-status", classes="acct-act-btn")
+        with Horizontal(classes="action-row"):
+            yield Button("📋 Add profile", id="btn-add-profile", variant="success")
+            yield Button("⏮ Prev",        id="btn-prev-profile")
+            yield Button("🔄 Re-login",    id="btn-relogin")
+            yield Button("⏭ Next",        id="btn-next-profile")
+        with Horizontal(classes="action-row"):
+            if profile_opts:
+                yield Select(profile_opts, prompt="Select target profile…", id="sel-target-profile")
+            else:
+                yield Label("No profiles found — add one above.", classes="hint")
+            yield Button("👤 Switch", id="btn-switch-target")
+
         yield Label("BROWSER", classes="section-title")
         yield Rule()
-        yield SettingRow("◎  Headless mode",      Switch(c.get("headless", True),              id="sw-headless"))
-        yield SettingRow("▷  Auto-start browser", Switch(c.get("auto_start_browser", True),    id="sw-auto_start"))
         yield SettingRow(">_ Show console",        Switch(c.get("show_engine_console", False),  id="sw-show_console"))
         yield SettingRow("⧗  Heartbeat timeout",  Input(str(c.get("heartbeat_timeout", 3600)), id="in-heartbeat"))
         yield SettingRow("⊕  Browser URL",        Input(c.get("browser_url", ""),              id="in-browser_url"), classes="wide")
@@ -212,15 +243,6 @@ class EngineTab(VerticalScroll):
         if avail_tools:
             yield Label(f"   Available: {', '.join(avail_tools)}", classes="hint")
 
-        yield Label("ENGINE ACTIONS", classes="section-title")
-        yield Rule()
-        with Horizontal(classes="action-row"):
-            yield Button("↺ Restart",     id="btn-restart",       variant="primary")
-            yield Button("■ Stop",        id="btn-stop",          variant="warning")
-            yield Button("+ New chat",    id="btn-new-chat")
-            yield Button("⟳ Refresh",    id="btn-refresh-page")
-            yield Button("⊙ Discover",   id="btn-discover")
-
 
 class AutomationTab(VerticalScroll):
     def compose(self) -> ComposeResult:
@@ -234,7 +256,6 @@ class AutomationTab(VerticalScroll):
         mode_val = cur_mode if any(v == cur_mode for _, v in MODE_OPTIONS) else Select.BLANK
         yield SettingRow("⊙  Mode",                Select(MODE_OPTIONS, value=mode_val,             id="sel-mode"))
         yield SettingRow("▣  Goal (rounds)",        Input(str(auto.get("goal", 1)),                 id="in-goal"))
-        yield SettingRow("▷  Auto-continue loop",  Switch(c.get("auto_continue_loop", False),       id="sw-auto_continue"))
 
         yield Label("IMAGE PROCESSING", classes="section-title")
         yield Rule()
@@ -354,6 +375,11 @@ class GemiTUI(App):
     .action-row { height: auto; margin: 1 0; }
     Button      { margin: 0 1 0 0; }
 
+    .acct-status-row   { height: 3; align: left middle; }
+    .acct-status-label { width: auto; content-align: left middle; color: $text-muted; }
+    .acct-status-value { width: 1fr; content-align: left middle; color: $accent; text-style: bold; padding: 0 0 0 1; }
+    .acct-act-btn      { min-width: 16; }
+
     .account-card { height: 3; align: left middle; border-bottom: solid $surface; }
     .acct-email   { width: 1fr; content-align: left middle; }
     .acct-badge   { width: 14; content-align: left middle; }
@@ -403,7 +429,8 @@ class GemiTUI(App):
         ("ctrl+r", "reload_config",  "Reload config"),
     ]
 
-    engine_online: reactive[bool] = reactive(False)
+    engine_online:  reactive[bool] = reactive(False)
+    browser_online: reactive[bool] = reactive(False)
 
     def __init__(self):
         super().__init__()
@@ -537,14 +564,34 @@ class GemiTUI(App):
 
     @work(exclusive=True, group="poll_status")
     async def _poll_status(self) -> None:
+        online  = False
+        browser = False
         try:
             async with httpx.AsyncClient() as client:
                 r = await client.get(f"{ENGINE_URL}/health", timeout=2.0)
                 online = r.status_code == 200
+                if online:
+                    browser = bool(r.json().get("engine_running"))
         except Exception:
-            online = False
-        self.engine_online = online
+            pass
+        self.engine_online  = online
+        self.browser_online = browser
         self._update_subtitle()
+        self._update_op_buttons()
+
+    def _update_op_buttons(self) -> None:
+        """Flip the ENGINE OPERATIONS buttons between Start/Stop. Driven by the
+        same status poll that feeds the status bar — no special-casing."""
+        try:
+            self.query_one("#btn-toggle-engine", Button).label = (
+                "Stop Engine" if self.engine_online else "Start Engine")
+        except Exception:
+            pass
+        try:
+            self.query_one("#btn-toggle-browser", Button).label = (
+                "Stop Browser" if self.browser_online else "Start Browser")
+        except Exception:
+            pass
 
     def _update_subtitle(self) -> None:
         cfg    = load_config()
@@ -607,12 +654,15 @@ class GemiTUI(App):
     @on(Button.Pressed)
     def on_button_pressed(self, event: Button.Pressed) -> None:
         bid = event.button.id or ""
-        if   bid == "btn-restart":       self._engine_restart()
-        elif bid == "btn-stop":          self._engine_stop()
-        elif bid == "btn-new-chat":      self._new_chat()
-        elif bid == "btn-refresh-page":  self._refresh_page()
-        elif bid == "btn-discover":      self._discover()
+        if   bid == "btn-toggle-engine":  self._toggle_engine_service()
+        elif bid == "btn-toggle-browser": self._toggle_browser()
         elif bid == "btn-add-account":   self._add_account()
+        elif bid == "btn-check-status":  self._check_login_status()
+        elif bid == "btn-add-profile":   self._add_account()
+        elif bid == "btn-prev-profile":  self._switch_profile_dir(-1)
+        elif bid == "btn-next-profile":  self._switch_profile_dir(1)
+        elif bid == "btn-relogin":       self._relogin_current()
+        elif bid == "btn-switch-target": self._switch_target_profile()
         elif bid.startswith("btn-switch-"):
             self._switch_account(event.button.name or "")
         elif bid.startswith("btn-del-"):
@@ -650,62 +700,36 @@ class GemiTUI(App):
         except Exception as e:
             self.notify(f"Auto-start failed: {e}", severity="error")
 
-    @work
-    async def _engine_restart(self) -> None:
-        self.notify("Restarting engine...", timeout=3)
-        try:
-            async with httpx.AsyncClient() as c:
-                await c.post(f"{ENGINE_URL}/engine/stop", timeout=10)
-            await asyncio.sleep(1.5)
-            async with httpx.AsyncClient() as c:
-                await c.post(f"{ENGINE_URL}/engine/start", json={}, timeout=30)
-            self.notify("Engine restarted")
-        except Exception as e:
-            self.notify(f"Restart failed: {e}", severity="error")
+    @work(group="ops", exclusive=True)
+    async def _toggle_engine_service(self) -> None:
+        if self.engine_online:
+            self.notify("Stopping engine service...", timeout=3)
+            await self._shutdown_service()
+        else:
+            self.notify("Starting engine service...", timeout=3)
+            self._start_and_stream_service()
+        self._poll_status()
 
-    @work
-    async def _engine_stop(self) -> None:
-        try:
-            async with httpx.AsyncClient() as c:
-                await c.post(f"{ENGINE_URL}/engine/stop", timeout=10)
-            self.notify("Engine stopped")
-        except Exception as e:
-            self.notify(f"Stop failed: {e}", severity="error")
-
-    @work
-    async def _new_chat(self) -> None:
-        try:
-            async with httpx.AsyncClient() as c:
-                await c.post(f"{ENGINE_URL}/browser/new_chat", timeout=30)
-            self.notify("New chat started")
-        except Exception as e:
-            self.notify(f"Failed: {e}", severity="error")
-
-    @work
-    async def _refresh_page(self) -> None:
-        try:
-            cfg = load_config()
-            url = cfg.get("browser_url", "https://gemini.google.com/app")
-            async with httpx.AsyncClient() as c:
-                await c.post(f"{ENGINE_URL}/browser/navigate", json={"url": url}, timeout=30)
-            self.notify("Page refreshed")
-        except Exception as e:
-            self.notify(f"Failed: {e}", severity="error")
-
-    @work
-    async def _discover(self) -> None:
-        self.notify("Discovering models & tools...", timeout=10)
-        try:
-            async with httpx.AsyncClient() as c:
-                await c.post(f"{ENGINE_URL}/browser/discover", timeout=60)
-            cfg    = load_config()
-            disc   = cfg.get("discovery", {})
-            models = disc.get("available_models", [])
-            tools  = disc.get("available_tools", [])
-            await self.query_one(EngineTab).recompose()
-            self.notify(f"Found {len(models)} models, {len(tools)} tools")
-        except Exception as e:
-            self.notify(f"Discover failed: {e}", severity="error")
+    @work(group="ops", exclusive=True)
+    async def _toggle_browser(self) -> None:
+        if self.browser_online:
+            self.notify("Stopping browser...", timeout=3)
+            try:
+                async with httpx.AsyncClient() as c:
+                    await c.post(f"{ENGINE_URL}/engine/stop", timeout=20)
+                self.notify("Browser stopped")
+            except Exception as e:
+                self.notify(f"Stop failed: {e}", severity="error")
+        else:
+            headless = bool(load_config().get("headless", True))
+            self.notify(f"Starting browser (headless={headless})...", timeout=3)
+            try:
+                async with httpx.AsyncClient() as c:
+                    await c.post(f"{ENGINE_URL}/engine/start", json={"headless": headless}, timeout=120)
+                self.notify("Browser started")
+            except Exception as e:
+                self.notify(f"Start failed: {e}", severity="error")
+        self._poll_status()
 
     @work
     async def _add_account(self) -> None:
@@ -715,6 +739,103 @@ class GemiTUI(App):
             self.notify("Registration browser opened — log in, then reload (ctrl+r)")
         except Exception as e:
             self.notify(f"Failed: {e}", severity="error")
+
+    # ─── Account actions (Engine tab panel) ─────────────────────────────────────
+
+    def _set_active_profile_label(self, text: str) -> None:
+        try:
+            self.query_one("#engine-active-profile", Label).update(text)
+        except Exception:
+            pass
+
+    @work(group="acct", exclusive=True)
+    async def _check_login_status(self) -> None:
+        cfg     = load_config()
+        active  = cfg.get("active_user") or "none"
+        label   = active
+        online  = False
+        browser = False
+        try:
+            async with httpx.AsyncClient() as c:
+                r = await c.get(f"{ENGINE_URL}/health", timeout=2.0)
+                online = r.status_code == 200
+                if online:
+                    browser = bool(r.json().get("engine_running"))
+        except Exception:
+            pass
+        if browser:
+            try:
+                async with httpx.AsyncClient() as c:
+                    r = await c.get(f"{ENGINE_URL}/browser/account", timeout=20)
+                    data = r.json()
+                if data.get("logged_in") and data.get("account_id"):
+                    label = data["account_id"]
+                elif not data.get("logged_in"):
+                    label = f"{active} (not logged in)"
+            except Exception:
+                pass
+        if not online:
+            state = "engine offline"
+        elif not browser:
+            state = "engine online, browser stopped"
+        else:
+            state = "engine online"
+        self._set_active_profile_label(label)
+        self.notify(f"{state} · {label}", timeout=4)
+
+    @work(group="acct", exclusive=True)
+    async def _switch_profile_dir(self, direction: int) -> None:
+        ep   = "switch_profile" if direction > 0 else "switch_profile_previous"
+        word = "next" if direction > 0 else "previous"
+        self.notify(f"Switching to {word} profile...", timeout=5)
+        try:
+            async with httpx.AsyncClient() as c:
+                r = await c.post(f"{ENGINE_URL}/engine/{ep}", timeout=90)
+            msg = r.json().get("message", "done")
+            await self.query_one(AccountsTab).recompose()
+            self._update_subtitle()
+            self._set_active_profile_label(load_config().get("active_user") or "none")
+            self.notify(f"Profile switch: {msg}")
+        except Exception as e:
+            self.notify(f"Switch failed: {e}", severity="error")
+
+    @work(group="acct", exclusive=True)
+    async def _relogin_current(self) -> None:
+        self.notify("Re-logging current profile...", timeout=5)
+        try:
+            async with httpx.AsyncClient() as c:
+                r = await c.post(f"{ENGINE_URL}/engine/re_login_current_profile", timeout=90)
+            msg = r.json().get("message", "done")
+            self.notify(f"Re-login: {msg}")
+        except Exception as e:
+            self.notify(f"Re-login failed: {e}", severity="error")
+
+    @work(group="acct", exclusive=True)
+    async def _switch_target_profile(self) -> None:
+        try:
+            sel = self.query_one("#sel-target-profile", Select)
+        except Exception:
+            self.notify("No profiles available", severity="warning")
+            return
+        username = sel.value
+        if username is Select.BLANK or not username:
+            self.notify("Select a target profile first", severity="warning")
+            return
+        self.notify(f"Switching to {username}...", timeout=5)
+        try:
+            async with httpx.AsyncClient() as c:
+                r = await c.post(
+                    f"{ENGINE_URL}/engine/switch_to_profile",
+                    params={"username": username},
+                    timeout=90,
+                )
+            msg = r.json().get("message", "done")
+            await self.query_one(AccountsTab).recompose()
+            self._update_subtitle()
+            self._set_active_profile_label(load_config().get("active_user") or "none")
+            self.notify(f"Switched: {msg}")
+        except Exception as e:
+            self.notify(f"Switch failed: {e}", severity="error")
 
     @work
     async def _switch_account(self, username: str) -> None:
