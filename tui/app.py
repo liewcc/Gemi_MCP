@@ -554,25 +554,45 @@ class GemiTUI(App):
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 return s.connect_ex(("127.0.0.1", 18800)) == 0
 
+        def _kill_by_port() -> None:
+            """Kill whatever PID is listening on 18800 via taskkill /F /T."""
+            try:
+                out = subprocess.check_output(
+                    ["netstat", "-ano"], text=True, stderr=subprocess.DEVNULL
+                )
+                for line in out.splitlines():
+                    if ":18800" in line and "LISTENING" in line:
+                        pid = line.split()[-1]
+                        subprocess.run(
+                            ["taskkill", "/F", "/T", "/PID", pid],
+                            check=False,
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                        )
+                        break
+            except Exception:
+                pass
+
         if _port_open():
-            # A leftover engine (e.g. from a crash or Ctrl+C) still holds the port.
-            # Kill it and spawn our own so we always have a live stdout stream to
-            # display, instead of silently short-circuiting with no log output.
             self.call_from_thread(
                 self._append_log,
-                "[engine service already running on port 18800 — killing leftover and respawning...]",
+                "[engine service already running on port 18800 — killing and respawning...]",
             )
-            self._kill_leftover_engine()
-            # Wait (up to ~5s) for the port to actually free before we bind it.
+            _kill_by_port()
+            # Wait up to ~5 s for the port to free.
             for _ in range(20):
                 time.sleep(0.25)
                 if not _port_open():
                     break
             else:
-                self.call_from_thread(
-                    self._append_log,
-                    "[warning: port 18800 still in use after kill; spawn may fail]",
-                )
+                # Port still held — try once more with the legacy helper.
+                self._kill_leftover_engine()
+                time.sleep(1)
+                if _port_open():
+                    self.call_from_thread(
+                        self._append_log,
+                        "[warning: port 18800 still in use; spawn may fail]",
+                    )
+
         CREATE_NO_WINDOW = 0x08000000
         self._service_proc = subprocess.Popen(
             [sys.executable, "-u", str(ROOT / "core" / "engine_service.py")],
