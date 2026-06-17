@@ -1127,33 +1127,49 @@ class GemiTUI(App):
 
     async def _shutdown_service(self) -> None:
         import subprocess as _sp
+
+        # ── Diagnose: what PID is actually on port 18800? ──────────────────
+        port_pid: str | None = None
+        try:
+            out = _sp.check_output(["netstat", "-ano"], text=True, stderr=_sp.DEVNULL)
+            for line in out.splitlines():
+                if ":18800" in line and "LISTENING" in line:
+                    port_pid = line.split()[-1]
+                    break
+        except Exception:
+            pass
+        our_pid = self._service_proc.pid if self._service_proc else None
+        self._append_log(
+            f"[TUI] Shutdown — our PID={our_pid}  port-18800 PID={port_pid}"
+        )
+
         try:
             async with httpx.AsyncClient() as c:
                 await c.post(f"{ENGINE_URL}/engine/stop", timeout=5)
         except Exception:
             pass
-        # Kill the managed process by PID via taskkill (more reliable on Windows
-        # than Popen.kill() when the process hosts async I/O loops).
+
+        # Kill whichever PID is actually on the port first.
+        if port_pid:
+            _sp.run(
+                ["taskkill", "/F", "/T", "/PID", port_pid],
+                check=False, stdout=_sp.DEVNULL, stderr=_sp.DEVNULL,
+            )
+            self._append_log(f"[TUI] taskkill port PID {port_pid}")
+
+        # Also kill our managed process (may differ from port PID).
         if self._service_proc is not None:
-            pid = self._service_proc.pid
-            self._append_log(f"[TUI] Killing engine PID {pid}")
-            try:
+            if str(our_pid) != port_pid:
                 _sp.run(
-                    ["taskkill", "/F", "/T", "/PID", str(pid)],
-                    check=False,
-                    stdout=_sp.DEVNULL, stderr=_sp.DEVNULL,
+                    ["taskkill", "/F", "/T", "/PID", str(our_pid)],
+                    check=False, stdout=_sp.DEVNULL, stderr=_sp.DEVNULL,
                 )
-            except Exception as e:
-                self._append_log(f"[TUI] taskkill failed: {e}")
+                self._append_log(f"[TUI] taskkill our PID {our_pid}")
             try:
                 self._service_proc.kill()
             except Exception:
                 pass
             self._service_proc = None
-        # Belt-and-suspenders: also kill any process still holding port 18800.
-        killed = self._kill_leftover_engine()
-        if killed:
-            self._append_log("[TUI] Killed leftover engine by port")
 
     async def action_reload_config(self) -> None:
         for tab_cls in (EngineTab, AutomationTab, OutputTab, AccountsTab, MatrixTab):
