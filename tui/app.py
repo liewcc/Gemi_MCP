@@ -261,7 +261,6 @@ class EngineTab(VerticalScroll):
         # ── SINGLE ACTION CONTROL ──────────────────────────────────────────────
         yield Label("SINGLE ACTION CONTROL", classes="section-title")
         yield Rule()
-        yield SettingRow("Prompt", Input("", placeholder="Prompt text…", id="in-prompt"), classes="wide")
         with Horizontal(classes="action-row"):
             yield Button("+ New Chat",    id="btn-new-chat")
             yield Button("Submit Prompt", id="btn-submit-prompt", variant="primary")
@@ -271,7 +270,6 @@ class EngineTab(VerticalScroll):
             yield Button("Redo",          id="btn-redo")
             yield Button("Stop",          id="btn-stop",          variant="error")
 
-        yield Rule()
         yield Label("COMBINE ACTION CONTROL", classes="section-title")
         yield Rule()
         with Horizontal(classes="action-row"):
@@ -279,8 +277,8 @@ class EngineTab(VerticalScroll):
             yield Button("Redo", id="btn-combine-redo")
             yield Button("Stop", id="btn-combine-stop", variant="error")
 
-        yield Rule()
-        yield Button("Capture Browser DOM to File", id="btn-capture-dom")
+        with Horizontal(classes="action-row"):
+            yield Button("Capture Browser DOM to File", id="btn-capture-dom")
 
 
 class AutomationTab(VerticalScroll):
