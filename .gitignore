@@ -1,6 +1,7 @@
 # Browser session data (contains account cookies — never commit)
 core/browser_session_sandbox/
 core/browser_user_data/
+_bak_user_data/
 
 # Runtime screenshots
 core/browser_screen_capture/

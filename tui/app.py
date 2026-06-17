@@ -18,7 +18,8 @@ from textual.widgets import (
 )
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "core"))
+sys.path.insert(0, str(ROOT / "engine" / "core"))  # submodule (active shared code)
+sys.path.insert(0, str(ROOT / "core"))              # project-local (processing_utils, legacy)
 from config_utils import load_config, load_login_lookup, save_config, save_login_lookup
 
 ENGINE_URL = "http://127.0.0.1:18800"
@@ -615,12 +616,19 @@ class GemiTUI(App):
                     )
 
         CREATE_NO_WINDOW = 0x08000000
+        import os as _os
+        _env = _os.environ.copy()
+        _core_path = str(ROOT / "core")  # project-local: processing_utils lives here
+        _env["PYTHONPATH"] = _core_path + (_os.pathsep + _env["PYTHONPATH"] if "PYTHONPATH" in _env else "")
+        _env["BROWSER_ENGINE_DATA_DIR"] = _core_path
+        _env["BROWSER_ENGINE_PROJECT_ROOT"] = str(ROOT)
         self._service_proc = subprocess.Popen(
-            [sys.executable, "-u", str(ROOT / "core" / "engine_service.py")],
+            [sys.executable, "-u", str(ROOT / "engine" / "core" / "engine_service.py")],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
-            cwd=str(ROOT / "core"),
+            cwd=str(ROOT / "engine" / "core"),
             creationflags=CREATE_NO_WINDOW,
+            env=_env,
         )
         _assign_process_to_job(self._job, self._service_proc)
         self.call_from_thread(self._append_log, "[engine service started]")
