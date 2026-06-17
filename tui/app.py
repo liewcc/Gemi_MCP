@@ -517,7 +517,7 @@ class GemiTUI(App):
     def on_mount(self) -> None:
         self._mounted = True
         self._update_subtitle()
-        self.set_interval(4, self._poll_status)
+        self.set_interval(2, self._poll_status)
         self.set_interval(2, self._poll_engine_logs)
         self._start_and_stream_service()
         self._engine_autostart()
@@ -649,10 +649,11 @@ class GemiTUI(App):
             pass
 
     def _update_subtitle(self) -> None:
-        cfg    = load_config()
-        active = cfg.get("active_user") or "none"
-        state  = "● online" if self.engine_online else "○ offline"
-        bar_text = f" Engine: {state}  │  {active}  │  q quit · ctrl+r reload "
+        cfg     = load_config()
+        active  = cfg.get("active_user") or "none"
+        engine  = "● online"  if self.engine_online  else "○ offline"
+        browser = "● browser" if self.browser_online else "○ browser"
+        bar_text = f" Engine: {engine}  {browser}  │  {active}  │  q quit · ctrl+r reload "
         try:
             self.query_one("#status-bar", Static).update(bar_text)
         except Exception:
@@ -819,7 +820,11 @@ class GemiTUI(App):
                 self.notify("Browser started")
             except Exception as e:
                 self.notify(f"Start failed: {e}", severity="error")
-        self._poll_status()
+        # Poll a few times quickly so the button flips as soon as the engine
+        # registers the new state, without waiting for the 2s interval tick.
+        for _ in range(4):
+            await asyncio.sleep(1)
+            self._poll_status()
 
     # ─── Single / Combine Action Control workers ──────────────────────────────
 
