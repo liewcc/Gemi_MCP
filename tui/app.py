@@ -841,6 +841,7 @@ class GemiTUI(App):
         else:
             self.notify("Starting engine service...", timeout=3)
             self._start_and_stream_service()
+            self._engine_autostart()
         await asyncio.sleep(1)
         self._poll_status()
 
