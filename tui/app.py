@@ -146,6 +146,14 @@ ASPECT_OPTIONS: list[tuple[str, str]] = [
     ("2:3 (Portrait)",   "2:3 (Portrait)"),
 ]
 MODE_OPTIONS: list[tuple[str, str]] = [("rounds", "rounds"), ("images", "images")]
+RANGE_OPTIONS: list[tuple[str, str]] = [
+    ("All", "All"),
+    ("1-10", "1-10"),
+    ("11-20", "11-20"),
+    ("21-30", "21-30"),
+    ("31-40", "31-40"),
+    ("41-50", "41-50"),
+]
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -307,12 +315,22 @@ class AccountsTab(VerticalScroll):
                 else:
                     badge, badge_cls = "○ Idle", "badge-idle"
 
-                with Horizontal(classes="account-card"):
-                    yield Label(username, classes="acct-email")
-                    yield Label(badge,    classes=f"acct-badge {badge_cls}")
-                    if not is_active:
-                        yield Button("⇄ Switch", id=f"btn-switch-{i}", name=username, classes="acct-btn")
-                    yield Button("✕ Del", id=f"btn-del-{i}", name=username, classes="acct-btn acct-del")
+                range_val = acc.get("range") or "All"
+                if not any(v == range_val for _, v in RANGE_OPTIONS):
+                    range_val = "All"
+
+                with Vertical(classes="account-card"):
+                    with Horizontal(classes="account-card-row-top"):
+                        yield Label(username, classes="acct-email")
+                        yield Label(badge,    classes=f"acct-badge {badge_cls}")
+                        if not is_active:
+                            yield Button("⇄ Switch", id=f"btn-switch-{i}", name=username, classes="acct-btn")
+                        yield Button("✕ Del", id=f"btn-del-{i}", name=username, classes="acct-btn acct-del")
+                    with Horizontal(classes="account-card-row-bottom"):
+                        yield Label("Auto Del", classes="acct-lbl-autodel")
+                        yield Switch(acc.get("auto_delete", False), id=f"sw-autodel-{i}")
+                        yield Label("Range", classes="acct-lbl-range")
+                        yield Select(RANGE_OPTIONS, value=range_val, id=f"sel-range-{i}", allow_blank=False)
 
         with Horizontal(classes="action-row"):
             yield Button("+ Add account (registration mode)", id="btn-add-account", variant="success")
@@ -380,13 +398,18 @@ class GemiTUI(App):
     .acct-status-value { width: 1fr; content-align: left middle; color: $accent; text-style: bold; padding: 0 0 0 1; }
     .acct-act-btn      { min-width: 16; }
 
-    .account-card { height: 3; align: left middle; border-bottom: solid $surface; }
+    .account-card { height: 6; align: left middle; border-bottom: solid $surface; }
+    .account-card-row-top { height: 3; align: left middle; }
+    .account-card-row-bottom { height: 3; align: left middle; }
     .acct-email   { width: 1fr; content-align: left middle; }
     .acct-badge   { width: 14; content-align: left middle; }
     .badge-active { color: $success; }
     .badge-quota  { color: $warning; }
     .badge-idle   { color: $text-muted; }
     .acct-btn     { min-width: 8; margin: 0 0 0 1; }
+    .acct-lbl-autodel { width: 11; content-align: left middle; }
+    .acct-lbl-range   { width: 8; content-align: right middle; margin: 0 1 0 2; }
+    .account-card-row-bottom Select { width: 16; }
 
     .matrix-header { height: 2; color: $text-muted; }
     .matrix-row    { height: 3; align: left middle; }
@@ -619,6 +642,16 @@ class GemiTUI(App):
         wid = event.switch.id or ""
         if wid in _SWITCH_MAP:
             self._save(_SWITCH_MAP[wid], event.value)
+        elif wid.startswith("sw-autodel-"):
+            try:
+                idx = int(wid.split("-")[-1])
+                accounts = load_login_lookup()
+                if 0 <= idx < len(accounts):
+                    accounts[idx]["auto_delete"] = event.value
+                    save_login_lookup(accounts)
+                    self.notify(f"Saved {accounts[idx]['username']}: auto_delete = {event.value}", timeout=2)
+            except (ValueError, IndexError):
+                self.notify("Error saving auto_delete", severity="error")
 
     @on(Input.Submitted)
     def on_input_submitted(self, event: Input.Submitted) -> None:
@@ -650,6 +683,16 @@ class GemiTUI(App):
         wid = event.select.id or ""
         if wid in _SELECT_MAP and event.value is not Select.BLANK:
             self._save(_SELECT_MAP[wid], event.value)
+        elif wid.startswith("sel-range-") and event.value is not Select.BLANK:
+            try:
+                idx = int(wid.split("-")[-1])
+                accounts = load_login_lookup()
+                if 0 <= idx < len(accounts):
+                    accounts[idx]["range"] = event.value
+                    save_login_lookup(accounts)
+                    self.notify(f"Saved {accounts[idx]['username']}: range = {event.value}", timeout=2)
+            except (ValueError, IndexError):
+                self.notify("Error saving range", severity="error")
 
     @on(Button.Pressed)
     def on_button_pressed(self, event: Button.Pressed) -> None:
