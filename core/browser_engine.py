@@ -743,7 +743,7 @@ class BrowserEngine:
             # First, check current visible model
             current_model_el = await self._page.query_selector('button[data-test-id="bard-mode-menu-button"] .logo-pill-label-container span')
             if current_model_el:
-                results["current_model"] = (await current_model_el.innerText()).split('\n')[0].strip()
+                results["current_model"] = (await current_model_el.inner_text()).split('\n')[0].strip()
 
             # Trigger model menu
             await self._page.click('button[data-test-id="bard-mode-menu-button"]')
