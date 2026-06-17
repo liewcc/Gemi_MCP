@@ -780,16 +780,27 @@ class BrowserEngine:
             await asyncio.sleep(0.5)
 
             # 2. Discover Tools
-            # Use the confirmed 'toolbox-drawer-button'
+            # Primary selector: aria-label="Upload & tools" (the + button in current Gemini UI)
+            # Fallback chain: legacy class → text match
             self._log_debug("Attempting to open Tools drawer...")
-            btn = self._page.locator('button.toolbox-drawer-button').first
-            if await btn.is_visible():
-                await btn.click()
-            else:
-                # Fallback to text matching if class fails
+            opened = False
+            for locator in [
+                self._page.locator('button[aria-label="Upload & tools"]').first,
+                self._page.locator('button.toolbox-drawer-button').first,
+            ]:
+                try:
+                    if await locator.is_visible(timeout=1000):
+                        await locator.click()
+                        opened = True
+                        break
+                except Exception:
+                    pass
+            if not opened:
+                # Last resort: find any button whose aria-label contains "tools" (case-insensitive)
                 await self._page.evaluate('''() => {
                     const btn = Array.from(document.querySelectorAll('button'))
-                                     .find(b => b.innerText.includes("Tools"));
+                                     .find(b => (b.getAttribute("aria-label") || "").toLowerCase().includes("tools")
+                                             || b.innerText.includes("Tools"));
                     if (btn) btn.click();
                 }''')
             
