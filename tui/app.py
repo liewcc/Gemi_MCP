@@ -119,8 +119,6 @@ _SWITCH_MAP: dict[str, str] = {
 _INPUT_MAP: dict[str, tuple[str, type]] = {
     "in-heartbeat":   ("heartbeat_timeout", int),
     "in-browser_url": ("browser_url", str),
-    "in-model":       ("selected_model", str),
-    "in-tool":        ("selected_tool", str),
     "in-goal":        ("automation.goal", int),
     "in-save_dir":    ("save_dir", str),
     "in-prefix":      ("name_prefix", str),
@@ -147,12 +145,9 @@ ASPECT_OPTIONS: list[tuple[str, str]] = [
 ]
 MODE_OPTIONS: list[tuple[str, str]] = [("rounds", "rounds"), ("images", "images")]
 RANGE_OPTIONS: list[tuple[str, str]] = [
-    ("All", "All"),
-    ("1-10", "1-10"),
-    ("11-20", "11-20"),
-    ("21-30", "21-30"),
-    ("31-40", "31-40"),
-    ("41-50", "41-50"),
+    ("Last hour", "Last hour"),
+    ("Last day",  "Last day"),
+    ("All time",  "All time"),
 ]
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -240,16 +235,28 @@ class EngineTab(VerticalScroll):
         yield SettingRow("⧗  Heartbeat timeout",  Input(str(c.get("heartbeat_timeout", 3600)), id="in-heartbeat"))
         yield SettingRow("⊕  Browser URL",        Input(c.get("browser_url", ""),              id="in-browser_url"), classes="wide")
 
-        yield Label("MODEL / TOOL", classes="section-title")
+        yield Label("TOOL & MODEL SELECTION", classes="section-title")
         yield Rule()
-        yield SettingRow("⊞  Model",
-                         Input(c.get("selected_model", ""), placeholder="e.g. 2.0 Flash",        id="in-model"))
-        yield SettingRow("⚙  Tool",
-                         Input(c.get("selected_tool", ""),  placeholder="e.g. Image generation",  id="in-tool"))
-        if avail_models:
-            yield Label(f"   Available: {', '.join(avail_models)}", classes="hint")
-        if avail_tools:
-            yield Label(f"   Available: {', '.join(avail_tools)}", classes="hint")
+        sel_tool  = c.get("selected_tool",  "") or ""
+        sel_model = c.get("selected_model", "") or ""
+
+        tool_opts: list[tuple[str, str]] = [("Default Tool", "")]
+        tool_opts += [(t, t) for t in avail_tools if t]
+
+        model_opts: list[tuple[str, str]] = [(m, m) for m in avail_models if m]
+        if not model_opts:
+            model_opts = [(sel_model, sel_model)] if sel_model else [("(none — click Discover)", "")]
+
+        tool_val  = sel_tool  if any(v == sel_tool  for _, v in tool_opts)  else ""
+        model_val = sel_model if any(v == sel_model for _, v in model_opts) else model_opts[0][1]
+
+        with Horizontal(classes="action-row"):
+            yield Select(tool_opts,  value=tool_val,  id="sel-tool",  allow_blank=False)
+            yield Select(model_opts, value=model_val, id="sel-model", allow_blank=False)
+        with Horizontal(classes="action-row"):
+            yield Button("Discover", id="btn-discover")
+            yield Button("Save",     id="btn-save-model-tool")
+            yield Button("Apply",    id="btn-apply-model-tool", variant="primary")
 
 
 class AutomationTab(VerticalScroll):
@@ -315,9 +322,9 @@ class AccountsTab(VerticalScroll):
                 else:
                     badge, badge_cls = "○ Idle", "badge-idle"
 
-                range_val = acc.get("range") or "All"
+                range_val = acc.get("delete_range") or "Last hour"
                 if not any(v == range_val for _, v in RANGE_OPTIONS):
-                    range_val = "All"
+                    range_val = "Last hour"
 
                 with Vertical(classes="account-card"):
                     with Horizontal(classes="account-card-row-top"):
@@ -331,6 +338,7 @@ class AccountsTab(VerticalScroll):
                         yield Switch(acc.get("auto_delete", False), id=f"sw-autodel-{i}")
                         yield Label("Range", classes="acct-lbl-range")
                         yield Select(RANGE_OPTIONS, value=range_val, id=f"sel-range-{i}", allow_blank=False)
+                        yield Button("🗑 Delete Now", id=f"btn-delhist-{i}", name=username, classes="acct-btn acct-delhist")
 
         with Horizontal(classes="action-row"):
             yield Button("+ Add account (registration mode)", id="btn-add-account", variant="success")
@@ -392,6 +400,7 @@ class GemiTUI(App):
 
     .action-row { height: auto; margin: 1 0; }
     Button      { margin: 0 1 0 0; }
+    #sel-tool, #sel-model { width: 1fr; }
 
     .acct-status-row   { height: 3; align: left middle; }
     .acct-status-label { width: auto; content-align: left middle; color: $text-muted; }
@@ -410,6 +419,7 @@ class GemiTUI(App):
     .acct-lbl-autodel { width: 11; content-align: left middle; }
     .acct-lbl-range   { width: 8; content-align: right middle; margin: 0 1 0 2; }
     .account-card-row-bottom Select { width: 16; }
+    .acct-delhist { min-width: 14; margin: 0 0 0 1; }
 
     .matrix-header { height: 2; color: $text-muted; }
     .matrix-row    { height: 3; align: left middle; }
@@ -688,20 +698,23 @@ class GemiTUI(App):
                 idx = int(wid.split("-")[-1])
                 accounts = load_login_lookup()
                 if 0 <= idx < len(accounts):
-                    accounts[idx]["range"] = event.value
+                    accounts[idx]["delete_range"] = event.value
                     save_login_lookup(accounts)
-                    self.notify(f"Saved {accounts[idx]['username']}: range = {event.value}", timeout=2)
+                    self.notify(f"Saved {accounts[idx]['username']}: delete_range = {event.value}", timeout=2)
             except (ValueError, IndexError):
                 self.notify("Error saving range", severity="error")
 
     @on(Button.Pressed)
     def on_button_pressed(self, event: Button.Pressed) -> None:
         bid = event.button.id or ""
-        if   bid == "btn-toggle-engine":  self._toggle_engine_service()
-        elif bid == "btn-toggle-browser": self._toggle_browser()
-        elif bid == "btn-add-account":   self._add_account()
-        elif bid == "btn-check-status":  self._check_login_status()
-        elif bid == "btn-add-profile":   self._add_account()
+        if   bid == "btn-toggle-engine":     self._toggle_engine_service()
+        elif bid == "btn-toggle-browser":    self._toggle_browser()
+        elif bid == "btn-discover":          self._discover_capabilities()
+        elif bid == "btn-save-model-tool":   self._save_model_tool()
+        elif bid == "btn-apply-model-tool":  self._apply_model_tool()
+        elif bid == "btn-add-account":       self._add_account()
+        elif bid == "btn-check-status":      self._check_login_status()
+        elif bid == "btn-add-profile":       self._add_account()
         elif bid == "btn-prev-profile":  self._switch_profile_dir(-1)
         elif bid == "btn-next-profile":  self._switch_profile_dir(1)
         elif bid == "btn-relogin":       self._relogin_current()
@@ -710,6 +723,8 @@ class GemiTUI(App):
             self._switch_account(event.button.name or "")
         elif bid.startswith("btn-del-"):
             self._delete_account(event.button.name or "")
+        elif bid.startswith("btn-delhist-"):
+            self._delete_history_for(event.button.name or "")
 
     # ─── Engine workers ───────────────────────────────────────────────────────
 
@@ -773,6 +788,49 @@ class GemiTUI(App):
             except Exception as e:
                 self.notify(f"Start failed: {e}", severity="error")
         self._poll_status()
+
+    @work(group="ops", exclusive=True)
+    async def _discover_capabilities(self) -> None:
+        self.notify("Discovering models and tools...", timeout=5)
+        try:
+            async with httpx.AsyncClient() as c:
+                await c.post(f"{ENGINE_URL}/browser/discover", timeout=60)
+            self.notify("Discovery complete — reloading selects")
+            await self.query_one(EngineTab).recompose()
+        except Exception as e:
+            self.notify(f"Discover failed: {e}", severity="error")
+
+    @work(group="ops", exclusive=True)
+    async def _save_model_tool(self) -> None:
+        try:
+            tool  = self.query_one("#sel-tool",  Select).value
+            model = self.query_one("#sel-model", Select).value
+            if tool  is Select.BLANK: tool  = ""
+            if model is Select.BLANK: model = ""
+            _dot_save("selected_tool",  tool)
+            _dot_save("selected_model", model)
+            self.notify(f"Saved: model={model or '(default)'} / tool={tool or '(default)'}", timeout=3)
+        except Exception as e:
+            self.notify(f"Save failed: {e}", severity="error")
+
+    @work(group="ops", exclusive=True)
+    async def _apply_model_tool(self) -> None:
+        try:
+            tool  = self.query_one("#sel-tool",  Select).value
+            model = self.query_one("#sel-model", Select).value
+            if tool  is Select.BLANK: tool  = ""
+            if model is Select.BLANK: model = ""
+            self.notify(f"Applying: model={model or '(default)'} / tool={tool or '(default)'}...", timeout=5)
+            async with httpx.AsyncClient() as c:
+                r = await c.post(
+                    f"{ENGINE_URL}/browser/apply_settings",
+                    json={"model": model, "tool": tool},
+                    timeout=60,
+                )
+            msg = r.json().get("message", "done")
+            self.notify(f"Apply: {msg}")
+        except Exception as e:
+            self.notify(f"Apply failed: {e}", severity="error")
 
     @work
     async def _add_account(self) -> None:
@@ -902,6 +960,24 @@ class GemiTUI(App):
         save_login_lookup(accounts)
         await self.query_one(AccountsTab).recompose()
         self.notify(f"Deleted {username}")
+
+    @work
+    async def _delete_history_for(self, username: str) -> None:
+        accounts = load_login_lookup()
+        acc = next((a for a in accounts if a.get("username") == username), {})
+        del_range = acc.get("delete_range", "Last hour")
+        self.notify(f"Deleting history ({del_range}) for {username}...", timeout=5)
+        try:
+            async with httpx.AsyncClient() as c:
+                r = await c.post(
+                    f"{ENGINE_URL}/engine/delete_history",
+                    json={"range": del_range},
+                    timeout=60,
+                )
+            msg = r.json().get("message", "done")
+            self.notify(f"History deleted: {msg}")
+        except Exception as e:
+            self.notify(f"Delete history failed: {e}", severity="error")
 
     # ─── App actions ──────────────────────────────────────────────────────────
 

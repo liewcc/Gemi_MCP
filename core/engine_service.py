@@ -714,6 +714,19 @@ async def re_login_current_profile(h: bool = Query(None)):
     return res
 
 
+class DeleteHistoryRequest(BaseModel):
+    range: str = "Last hour"
+
+@app.post("/engine/delete_history")
+async def delete_history(req: DeleteHistoryRequest):
+    if not engine.is_running:
+        raise HTTPException(status_code=400, detail="Browser engine is not running")
+    res = await engine.delete_activity_history(range_name=req.range)
+    if res.get("status") == "error":
+        raise HTTPException(status_code=500, detail=res.get("message"))
+    return res
+
+
 def _check_loop_control_thresholds(loop_ctrl: dict, result: dict):
     """
     Checks the three loop-control thresholds against the just-settled cycle stats.
