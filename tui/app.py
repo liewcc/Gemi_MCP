@@ -258,6 +258,30 @@ class EngineTab(VerticalScroll):
             yield Button("Save",     id="btn-save-model-tool")
             yield Button("Apply",    id="btn-apply-model-tool", variant="primary")
 
+        # ── SINGLE ACTION CONTROL ──────────────────────────────────────────────
+        yield Label("SINGLE ACTION CONTROL", classes="section-title")
+        yield Rule()
+        yield SettingRow("Prompt", Input("", placeholder="Prompt text…", id="in-prompt"), classes="wide")
+        with Horizontal(classes="action-row"):
+            yield Button("+ New Chat",    id="btn-new-chat")
+            yield Button("Submit Prompt", id="btn-submit-prompt", variant="primary")
+            yield Button("Upload File",   id="btn-upload-file",   variant="primary")
+        with Horizontal(classes="action-row"):
+            yield Button("Submit",        id="btn-submit",        variant="primary")
+            yield Button("Redo",          id="btn-redo")
+            yield Button("Stop",          id="btn-stop",          variant="error")
+
+        yield Rule()
+        yield Label("COMBINE ACTION CONTROL", classes="section-title")
+        yield Rule()
+        with Horizontal(classes="action-row"):
+            yield Button("New Chat + Submit Prompt + Submit", id="btn-combine-submit", variant="primary")
+            yield Button("Redo", id="btn-combine-redo")
+            yield Button("Stop", id="btn-combine-stop", variant="error")
+
+        yield Rule()
+        yield Button("Capture Browser DOM to File", id="btn-capture-dom")
+
 
 class AutomationTab(VerticalScroll):
     def compose(self) -> ComposeResult:
@@ -712,6 +736,16 @@ class GemiTUI(App):
         elif bid == "btn-discover":          self._discover_capabilities()
         elif bid == "btn-save-model-tool":   self._save_model_tool()
         elif bid == "btn-apply-model-tool":  self._apply_model_tool()
+        elif bid == "btn-new-chat":          self._action_new_chat()
+        elif bid == "btn-submit-prompt":     self._action_submit_prompt()
+        elif bid == "btn-upload-file":       self._action_upload_file()
+        elif bid == "btn-submit":            self._action_submit()
+        elif bid == "btn-redo":              self._action_redo()
+        elif bid == "btn-stop":              self._action_stop()
+        elif bid == "btn-combine-submit":    self._action_combine_submit()
+        elif bid == "btn-combine-redo":      self._action_redo()
+        elif bid == "btn-combine-stop":      self._action_stop()
+        elif bid == "btn-capture-dom":       self._action_capture_dom()
         elif bid == "btn-add-account":       self._add_account()
         elif bid == "btn-check-status":      self._check_login_status()
         elif bid == "btn-add-profile":       self._add_account()
@@ -788,6 +822,106 @@ class GemiTUI(App):
             except Exception as e:
                 self.notify(f"Start failed: {e}", severity="error")
         self._poll_status()
+
+    # ─── Single / Combine Action Control workers ──────────────────────────────
+
+    def _get_prompt_text(self) -> str:
+        try:
+            return str(self.query_one("#in-prompt", Input).value)
+        except Exception:
+            return ""
+
+    @work(group="ops", exclusive=True)
+    async def _action_new_chat(self) -> None:
+        self.notify("Triggering New Chat…", timeout=3)
+        try:
+            async with httpx.AsyncClient() as c:
+                r = await c.post(f"{ENGINE_URL}/browser/new_chat", timeout=30)
+            self.notify(r.json().get("message", "New Chat done"))
+        except Exception as e:
+            self.notify(f"New Chat failed: {e}", severity="error")
+
+    @work(group="ops", exclusive=True)
+    async def _action_submit_prompt(self) -> None:
+        text = self._get_prompt_text()
+        if not text:
+            self.notify("Enter prompt text first", severity="warning")
+            return
+        self.notify(f"Filling prompt: {text[:40]}…", timeout=3)
+        try:
+            async with httpx.AsyncClient() as c:
+                r = await c.post(f"{ENGINE_URL}/browser/prompt",
+                                 json={"text": text, "mode": "default"}, timeout=30)
+            self.notify(r.json().get("message", "Prompt filled"))
+        except Exception as e:
+            self.notify(f"Submit Prompt failed: {e}", severity="error")
+
+    @work(group="ops", exclusive=True)
+    async def _action_upload_file(self) -> None:
+        self.notify("Syncing attachments…", timeout=3)
+        try:
+            async with httpx.AsyncClient() as c:
+                r = await c.post(f"{ENGINE_URL}/browser/attach_files",
+                                 json={"files": []}, timeout=30)
+            d = r.json()
+            self.notify(f"Sync: added {d.get('added',0)}, removed {d.get('removed',0)}")
+        except Exception as e:
+            self.notify(f"Upload File failed: {e}", severity="error")
+
+    @work(group="ops", exclusive=True)
+    async def _action_submit(self) -> None:
+        self.notify("Submitting…", timeout=5)
+        try:
+            async with httpx.AsyncClient() as c:
+                r = await c.post(f"{ENGINE_URL}/browser/submit", timeout=120)
+            self.notify(r.json().get("message", "Submit done"))
+        except Exception as e:
+            self.notify(f"Submit failed: {e}", severity="error")
+
+    @work(group="ops", exclusive=True)
+    async def _action_redo(self) -> None:
+        self.notify("Redo…", timeout=3)
+        try:
+            async with httpx.AsyncClient() as c:
+                r = await c.post(f"{ENGINE_URL}/browser/redo", timeout=60)
+            self.notify(r.json().get("message", "Redo triggered"))
+        except Exception as e:
+            self.notify(f"Redo failed: {e}", severity="error")
+
+    @work(group="ops", exclusive=True)
+    async def _action_stop(self) -> None:
+        self.notify("Stopping…", timeout=3)
+        try:
+            async with httpx.AsyncClient() as c:
+                r = await c.post(f"{ENGINE_URL}/browser/stop", timeout=15)
+            self.notify(r.json().get("message", "Stopped"))
+        except Exception as e:
+            self.notify(f"Stop failed: {e}", severity="error")
+
+    @work(group="ops", exclusive=True)
+    async def _action_combine_submit(self) -> None:
+        text = self._get_prompt_text()
+        self.notify("Combine: New Chat + Submit Prompt + Submit…", timeout=10)
+        try:
+            async with httpx.AsyncClient() as c:
+                await c.post(f"{ENGINE_URL}/browser/new_chat", timeout=30)
+                if text:
+                    await c.post(f"{ENGINE_URL}/browser/prompt",
+                                 json={"text": text, "mode": "default"}, timeout=30)
+                r = await c.post(f"{ENGINE_URL}/browser/submit", timeout=120)
+            self.notify(r.json().get("message", "Combine done"))
+        except Exception as e:
+            self.notify(f"Combine Submit failed: {e}", severity="error")
+
+    @work(group="ops", exclusive=True)
+    async def _action_capture_dom(self) -> None:
+        self.notify("Capturing DOM to file…", timeout=5)
+        try:
+            async with httpx.AsyncClient() as c:
+                r = await c.post(f"{ENGINE_URL}/browser/capture_dom", timeout=30)
+            self.notify(r.json().get("message", "DOM captured"))
+        except Exception as e:
+            self.notify(f"Capture DOM failed: {e}", severity="error")
 
     @work(group="ops", exclusive=True)
     async def _discover_capabilities(self) -> None:
