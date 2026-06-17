@@ -1128,43 +1128,30 @@ class GemiTUI(App):
     async def _shutdown_service(self) -> None:
         import subprocess as _sp
 
-        # ── Diagnose: what PID is actually on port 18800? ──────────────────
-        port_pid: str | None = None
-        try:
-            out = _sp.check_output(["netstat", "-ano"], text=True, stderr=_sp.DEVNULL)
-            for line in out.splitlines():
-                if ":18800" in line and "LISTENING" in line:
-                    port_pid = line.split()[-1]
-                    break
-        except Exception:
-            pass
-        our_pid = self._service_proc.pid if self._service_proc else None
-        self._append_log(
-            f"[TUI] Shutdown — our PID={our_pid}  port-18800 PID={port_pid}"
-        )
-
         try:
             async with httpx.AsyncClient() as c:
                 await c.post(f"{ENGINE_URL}/engine/stop", timeout=5)
         except Exception:
             pass
 
-        # Kill whichever PID is actually on the port first.
-        if port_pid:
-            _sp.run(
-                ["taskkill", "/F", "/T", "/PID", port_pid],
-                check=False, stdout=_sp.DEVNULL, stderr=_sp.DEVNULL,
-            )
-            self._append_log(f"[TUI] taskkill port PID {port_pid}")
+        # Kill by the PID actually listening on port 18800 — this is the
+        # authoritative target and may differ from _service_proc.pid when
+        # a previous engine wasn't fully cleaned up before respawn.
+        try:
+            out = _sp.check_output(["netstat", "-ano"], text=True, stderr=_sp.DEVNULL)
+            for line in out.splitlines():
+                if ":18800" in line and "LISTENING" in line:
+                    port_pid = line.split()[-1]
+                    _sp.run(
+                        ["taskkill", "/F", "/T", "/PID", port_pid],
+                        check=False, stdout=_sp.DEVNULL, stderr=_sp.DEVNULL,
+                    )
+                    break
+        except Exception:
+            pass
 
-        # Also kill our managed process (may differ from port PID).
+        # Also kill our managed process handle as belt-and-suspenders.
         if self._service_proc is not None:
-            if str(our_pid) != port_pid:
-                _sp.run(
-                    ["taskkill", "/F", "/T", "/PID", str(our_pid)],
-                    check=False, stdout=_sp.DEVNULL, stderr=_sp.DEVNULL,
-                )
-                self._append_log(f"[TUI] taskkill our PID {our_pid}")
             try:
                 self._service_proc.kill()
             except Exception:
