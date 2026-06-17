@@ -1126,21 +1126,34 @@ class GemiTUI(App):
         self.exit()
 
     async def _shutdown_service(self) -> None:
+        import subprocess as _sp
         try:
             async with httpx.AsyncClient() as c:
                 await c.post(f"{ENGINE_URL}/engine/stop", timeout=5)
         except Exception:
             pass
-        # Kill the managed process if we have a handle.
+        # Kill the managed process by PID via taskkill (more reliable on Windows
+        # than Popen.kill() when the process hosts async I/O loops).
         if self._service_proc is not None:
+            pid = self._service_proc.pid
+            self._append_log(f"[TUI] Killing engine PID {pid}")
+            try:
+                _sp.run(
+                    ["taskkill", "/F", "/T", "/PID", str(pid)],
+                    check=False,
+                    stdout=_sp.DEVNULL, stderr=_sp.DEVNULL,
+                )
+            except Exception as e:
+                self._append_log(f"[TUI] taskkill failed: {e}")
             try:
                 self._service_proc.kill()
             except Exception:
                 pass
             self._service_proc = None
-        # Always also kill by port — handles externally-started engines and
-        # cases where the process handle is stale.
-        self._kill_leftover_engine()
+        # Belt-and-suspenders: also kill any process still holding port 18800.
+        killed = self._kill_leftover_engine()
+        if killed:
+            self._append_log("[TUI] Killed leftover engine by port")
 
     async def action_reload_config(self) -> None:
         for tab_cls in (EngineTab, AutomationTab, OutputTab, AccountsTab, MatrixTab):
