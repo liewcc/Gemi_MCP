@@ -7,7 +7,18 @@ echo  Gemi MCP Setup
 echo ============================================
 echo.
 
-echo [1/3] Installing Python dependencies...
+echo [1/4] Initializing engine submodule (Gemi_Engine)...
+git submodule update --init --recursive
+if %ERRORLEVEL% neq 0 (
+    echo.
+    echo ERROR: git submodule init failed.
+    echo Make sure Git is installed and you cloned this repo (not just downloaded a ZIP).
+    pause
+    exit /b 1
+)
+
+echo.
+echo [2/4] Installing Python dependencies...
 pip install -r requirements.txt
 if %ERRORLEVEL% neq 0 (
     echo.
@@ -18,7 +29,7 @@ if %ERRORLEVEL% neq 0 (
 )
 
 echo.
-echo [2/3] Installing Playwright browser (Chromium)...
+echo [3/4] Installing Playwright browser (Chromium)...
 playwright install chromium
 if %ERRORLEVEL% neq 0 (
     echo.
@@ -29,7 +40,7 @@ if %ERRORLEVEL% neq 0 (
 )
 
 echo.
-echo [3/3] Creating required runtime directories...
+echo [4/4] Creating required runtime directories...
 if not exist "data" mkdir "data"
 if not exist "core\browser_user_data" mkdir "core\browser_user_data"
 if not exist "core\browser_screen_capture" mkdir "core\browser_screen_capture"
