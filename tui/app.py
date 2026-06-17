@@ -651,8 +651,8 @@ class GemiTUI(App):
     def _update_subtitle(self) -> None:
         cfg     = load_config()
         active  = cfg.get("active_user") or "none"
-        engine  = "● online"  if self.engine_online  else "○ offline"
-        browser = "● browser" if self.browser_online else "○ browser"
+        engine  = "[green]● online[/green]"  if self.engine_online  else "[red]○ offline[/red]"
+        browser = "[green]● browser[/green]" if self.browser_online else "[red]○ browser[/red]"
         bar_text = f" Engine: {engine}  {browser}  │  {active}  │  q quit · ctrl+r reload "
         try:
             self.query_one("#status-bar", Static).update(bar_text)
@@ -791,7 +791,7 @@ class GemiTUI(App):
         except Exception as e:
             self.notify(f"Auto-start failed: {e}", severity="error")
 
-    @work(group="ops", exclusive=True)
+    @work(group="engine_ctrl", exclusive=True)
     async def _toggle_engine_service(self) -> None:
         if self.engine_online:
             self.notify("Stopping engine service...", timeout=3)
@@ -799,9 +799,10 @@ class GemiTUI(App):
         else:
             self.notify("Starting engine service...", timeout=3)
             self._start_and_stream_service()
+        await asyncio.sleep(1)
         self._poll_status()
 
-    @work(group="ops", exclusive=True)
+    @work(group="browser_ctrl", exclusive=True)
     async def _toggle_browser(self) -> None:
         if self.browser_online:
             self.notify("Stopping browser...", timeout=3)
@@ -820,8 +821,7 @@ class GemiTUI(App):
                 self.notify("Browser started")
             except Exception as e:
                 self.notify(f"Start failed: {e}", severity="error")
-        # Poll a few times quickly so the button flips as soon as the engine
-        # registers the new state, without waiting for the 2s interval tick.
+        # Poll a few times so the button flips as soon as the engine registers the change.
         for _ in range(4):
             await asyncio.sleep(1)
             self._poll_status()
