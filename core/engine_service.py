@@ -22,6 +22,12 @@ except Exception:
     pass
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+# Decouple code location from data/project location when running as a submodule.
+# tui/app.py sets these env vars so paths resolve correctly regardless of where
+# engine_service.py lives on disk.
+_DATA_DIR = os.environ.get("BROWSER_ENGINE_DATA_DIR") or os.path.dirname(os.path.abspath(__file__))
+_PROJECT_ROOT = os.environ.get("BROWSER_ENGINE_PROJECT_ROOT") or os.path.dirname(_DATA_DIR)
 import asyncio
 import time
 import json
@@ -142,7 +148,7 @@ async def clear_engine_logs():
 @app.post("/engine/start")
 async def start_engine(req: PersonaRequest | None = None):
     def get_abs_path(rel_path):
-        return os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), rel_path))
+        return os.path.join(_PROJECT_ROOT, rel_path)
 
     config_path = get_abs_path("data/config.json")
     
@@ -353,7 +359,7 @@ async def perform_switch_logic(h: bool = None, direction: int = 1, target_userna
     target_username: if provided, switch directly to that user (ignores direction).
     """
     def get_abs_path(rel_path):
-        return os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), rel_path))
+        return os.path.join(_PROJECT_ROOT, rel_path)
 
     lookup_path = get_abs_path("data/user_login_lookup.json")
     config_path = get_abs_path("data/config.json")
@@ -1248,7 +1254,7 @@ def _write_pending_stats():
             "lc_pending_resets": getattr(engine, '_lc_pending_resets', 0)
         }
         try:
-            pending_file = os.path.abspath(os.path.join(os.path.dirname(__file__), "pending_stats.json"))
+            pending_file = os.path.join(_DATA_DIR, "pending_stats.json")
             with open(pending_file, "w", encoding="utf-8") as f:
                 json.dump(pending_data, f)
             _commit_session_stats_to_table()
@@ -1314,7 +1320,7 @@ async def start_automation(req: AutomationRequest):
         with open(engine._reject_log_path, "w", encoding="utf-8") as f:
             json.dump([], f)
             
-        pending_file = os.path.abspath(os.path.join(os.path.dirname(__file__), "pending_stats.json"))
+        pending_file = os.path.join(_DATA_DIR, "pending_stats.json")
         if os.path.exists(pending_file):
             os.remove(pending_file)
     except Exception as e:
@@ -1384,7 +1390,7 @@ async def continue_automation(req: AutomationRequest):
 
     if req.clear_pending:
         # Clear the physical file if it exists
-        pending_file = os.path.abspath(os.path.join(os.path.dirname(__file__), "pending_stats.json"))
+        pending_file = os.path.join(_DATA_DIR, "pending_stats.json")
         if os.path.exists(pending_file):
             try:
                 os.remove(pending_file)
@@ -1410,7 +1416,7 @@ async def continue_automation(req: AutomationRequest):
         }
     else:
         # Load saved pending stats if they exist, so we can survive full engine restarts
-        pending_file = os.path.abspath(os.path.join(os.path.dirname(__file__), "pending_stats.json"))
+        pending_file = os.path.join(_DATA_DIR, "pending_stats.json")
         if os.path.exists(pending_file):
             try:
                 with open(pending_file, "r", encoding="utf-8") as f:
@@ -1468,7 +1474,7 @@ async def continue_automation(req: AutomationRequest):
     
     # Synchronize the snapshot ONLY IF we didn't just load from a pending file AND we're not clearing.
     # If we DID load from a file or we're clearing, the snapshot should remain as-is or be handled by the clear logic.
-    pending_exists = os.path.exists(os.path.abspath(os.path.join(os.path.dirname(__file__), "pending_stats.json")))
+    pending_exists = os.path.exists(os.path.join(_DATA_DIR, "pending_stats.json"))
     if not req.clear_pending and not pending_exists:
         engine._acct_snapshot = {
             "successes": engine.automation_status.get("successes", 0),
@@ -1668,7 +1674,7 @@ class DeleteCyclesRequest(BaseModel):
 
 @app.post("/engine/delete_cycles")
 async def delete_cycles(req: DeleteCyclesRequest):
-    target_path = req.log_path or os.path.join(os.path.dirname(__file__), "engine.log")
+    target_path = req.log_path or os.path.join(_DATA_DIR, "engine.log")
     if not os.path.exists(target_path):
         raise HTTPException(status_code=404, detail="Log file not found")
     try:
@@ -1700,7 +1706,7 @@ class SaveCyclesRequest(BaseModel):
 
 @app.post("/engine/save_cycles")
 async def save_cycles(req: SaveCyclesRequest):
-    target_path = req.log_path or os.path.join(os.path.dirname(__file__), "engine.log")
+    target_path = req.log_path or os.path.join(_DATA_DIR, "engine.log")
     if not os.path.exists(target_path):
         raise HTTPException(status_code=404, detail="Log file not found")
     try:
@@ -1764,7 +1770,7 @@ async def new_chat():
     try:
         # Load browser_url from config to handle Gem URLs correctly
         target_url = None
-        config_path = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "config.json"))
+        config_path = os.path.join(_PROJECT_ROOT, "data", "config.json")
         if os.path.exists(config_path):
             try:
                 with open(config_path, "r", encoding="utf-8") as f:
@@ -1939,8 +1945,8 @@ class UpscalerStartRequest(BaseModel):
 @app.get("/upscaler/status")
 async def get_upscaler_status():
     import psutil
-    lock_file = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), "upscaler.lock"))
-    status_file = os.path.abspath(os.path.join(os.path.dirname(__file__), "upscaler_status.json"))
+    lock_file = os.path.join(_PROJECT_ROOT, "upscaler.lock")
+    status_file = os.path.join(_DATA_DIR, "upscaler_status.json")
     
     is_running = False
     pid = None
@@ -1976,8 +1982,8 @@ async def get_upscaler_status():
 async def start_upscaler(req: UpscalerStartRequest):
     import psutil
     import subprocess
-    lock_file = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), "upscaler.lock"))
-    log_path = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), "upscaler.log"))
+    lock_file = os.path.join(_PROJECT_ROOT, "upscaler.lock")
+    log_path = os.path.join(_PROJECT_ROOT, "upscaler.log")
     
     # Check if already running
     if os.path.exists(lock_file):
@@ -2012,7 +2018,7 @@ async def start_upscaler(req: UpscalerStartRequest):
     except:
         pass
         
-    status_file = os.path.abspath(os.path.join(os.path.dirname(__file__), "upscaler_status.json"))
+    status_file = os.path.join(_DATA_DIR, "upscaler_status.json")
     try:
         if os.path.exists(status_file):
             os.remove(status_file)
@@ -2028,7 +2034,7 @@ async def start_upscaler(req: UpscalerStartRequest):
         pass
         
     # Build command line
-    worker_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "upscaler_worker.py"))
+    worker_path = os.path.join(_DATA_DIR, "upscaler_worker.py")
     cmd = [
         sys.executable, worker_path,
         "--profile", req.profile,
@@ -2046,7 +2052,7 @@ async def start_upscaler(req: UpscalerStartRequest):
     
     try:
         flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
-        proc = subprocess.Popen(cmd, creationflags=flags, cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        proc = subprocess.Popen(cmd, creationflags=flags, cwd=_PROJECT_ROOT)
         with open(lock_file, "w") as f:
             f.write(str(proc.pid))
         return {"status": "success", "pid": proc.pid}
@@ -2056,8 +2062,8 @@ async def start_upscaler(req: UpscalerStartRequest):
 @app.post("/upscaler/stop")
 async def stop_upscaler():
     import subprocess
-    lock_file = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), "upscaler.lock"))
-    log_path = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), "upscaler.log"))
+    lock_file = os.path.join(_PROJECT_ROOT, "upscaler.lock")
+    log_path = os.path.join(_PROJECT_ROOT, "upscaler.log")
     
     if not os.path.exists(lock_file):
         return {"status": "not_running"}
@@ -2108,7 +2114,7 @@ async def stop_upscaler():
             except:
                 pass
                 
-            worker_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "upscaler_worker.py"))
+            worker_path = os.path.join(_DATA_DIR, "upscaler_worker.py")
             del_cmd = [
                 sys.executable, worker_path,
                 "--profile", profile,
@@ -2116,7 +2122,7 @@ async def stop_upscaler():
                 "--delete-activity", range_name
             ]
             flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
-            subprocess.Popen(del_cmd, creationflags=flags, cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            subprocess.Popen(del_cmd, creationflags=flags, cwd=_PROJECT_ROOT)
     except Exception as e:
         print(f"Failed to launch standalone delete: {e}")
         
@@ -2124,7 +2130,7 @@ async def stop_upscaler():
 
 @app.get("/upscaler/logs")
 async def get_upscaler_logs():
-    log_path = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), "upscaler.log"))
+    log_path = os.path.join(_PROJECT_ROOT, "upscaler.log")
     if not os.path.exists(log_path):
         return {"logs": "Waiting for background worker to start..."}
     try:
@@ -2136,7 +2142,7 @@ async def get_upscaler_logs():
 
 @app.post("/upscaler/clear_logs")
 async def clear_upscaler_logs():
-    log_path = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), "upscaler.log"))
+    log_path = os.path.join(_PROJECT_ROOT, "upscaler.log")
     try:
         if os.path.exists(log_path):
             os.remove(log_path)
