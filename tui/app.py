@@ -793,9 +793,11 @@ class GemiTUI(App):
 
     @work(group="engine_ctrl", exclusive=True)
     async def _toggle_engine_service(self) -> None:
+        self._append_log(f"[TUI] Engine toggle clicked (engine_online={self.engine_online})")
         if self.engine_online:
             self.notify("Stopping engine service...", timeout=3)
             await self._shutdown_service()
+            self._append_log("[TUI] Engine shutdown requested")
         else:
             self.notify("Starting engine service...", timeout=3)
             self._start_and_stream_service()
@@ -1129,15 +1131,16 @@ class GemiTUI(App):
                 await c.post(f"{ENGINE_URL}/engine/stop", timeout=5)
         except Exception:
             pass
+        # Kill the managed process if we have a handle.
         if self._service_proc is not None:
             try:
                 self._service_proc.kill()
             except Exception:
                 pass
             self._service_proc = None
-        else:
-            # Fallback: service was already running before TUI started.
-            self._kill_leftover_engine()
+        # Always also kill by port — handles externally-started engines and
+        # cases where the process handle is stale.
+        self._kill_leftover_engine()
 
     async def action_reload_config(self) -> None:
         for tab_cls in (EngineTab, AutomationTab, OutputTab, AccountsTab, MatrixTab):
