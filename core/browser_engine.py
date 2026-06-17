@@ -804,27 +804,23 @@ class BrowserEngine:
                     if (btn) btn.click();
                 }''')
             
-            # Wait for the drawer — accept either the legacy id or the current class
+            # Wait for toolbox-drawer-item anywhere in document (items render inside cdk-overlay)
             try:
-                await self._page.wait_for_selector(
-                    '#toolbox-drawer-menu, .toolbox-drawer-container toolbox-drawer-item, toolbox-drawer-item',
-                    timeout=5000,
-                )
-            except:
+                await self._page.wait_for_selector('toolbox-drawer-item', timeout=5000)
+            except Exception:
                 self._log_debug("Tools drawer did not appear.")
 
             await asyncio.sleep(0.8)
 
-            # Grab tool labels — fall back to .toolbox-drawer-container if #toolbox-drawer-menu absent
+            # Grab tool labels — items live in cdk-overlay, so search the full document.
+            # Label class is .gem-menu-item-label in current Gemini UI (no longer .gds-label-l).
             results["tools"] = await self._page.evaluate('''() => {
-                const menu = document.getElementById('toolbox-drawer-menu')
-                          || document.querySelector('.toolbox-drawer-container');
-                if (!menu) return [];
-                const items = Array.from(menu.querySelectorAll('toolbox-drawer-item'));
+                const items = Array.from(document.querySelectorAll('toolbox-drawer-item'));
                 return items.map(i => {
-                    const label = i.querySelector('.label.gds-label-l') || i.querySelector('.mdc-list-item__primary-text');
+                    const label = i.querySelector('.label.gem-menu-item-label')
+                               || i.querySelector('.label.gds-label-l')
+                               || i.querySelector('.mdc-list-item__primary-text');
                     if (label) {
-                        // Take only the first line to avoid "New" badges etc.
                         return label.innerText.split('\\n')[0].trim();
                     }
                     return "";
