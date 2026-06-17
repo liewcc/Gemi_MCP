@@ -813,18 +813,29 @@ class BrowserEngine:
             await asyncio.sleep(0.8)
 
             # Grab tool labels — items live in cdk-overlay, so search the full document.
-            # Label class is .gem-menu-item-label in current Gemini UI (no longer .gds-label-l).
+            # toolbox-drawer-item uses .label.gem-menu-item-label; the Upload Files entry
+            # lives outside toolbox-drawer-item and uses .menu-text.gem-menu-item-label.
             results["tools"] = await self._page.evaluate('''() => {
-                const items = Array.from(document.querySelectorAll('toolbox-drawer-item'));
-                return items.map(i => {
-                    const label = i.querySelector('.label.gem-menu-item-label')
-                               || i.querySelector('.label.gds-label-l')
-                               || i.querySelector('.mdc-list-item__primary-text');
-                    if (label) {
-                        return label.innerText.split('\\n')[0].trim();
+                const labels = new Set();
+
+                // 1. toolbox-drawer-item entries (Create image, Canvas, etc.)
+                document.querySelectorAll('toolbox-drawer-item').forEach(i => {
+                    const el = i.querySelector('.label.gem-menu-item-label')
+                            || i.querySelector('.label.gds-label-l')
+                            || i.querySelector('.mdc-list-item__primary-text');
+                    if (el) {
+                        const t = el.innerText.split('\\n')[0].trim();
+                        if (t) labels.add(t);
                     }
-                    return "";
-                }).filter(t => t.length > 0);
+                });
+
+                // 2. Upload Files and similar items that use .menu-text.gem-menu-item-label
+                document.querySelectorAll('.menu-text.gem-menu-item-label').forEach(el => {
+                    const t = el.innerText.split('\\n')[0].trim();
+                    if (t) labels.add(t);
+                });
+
+                return Array.from(labels);
             }''')
             
             # Close by clicking escape
