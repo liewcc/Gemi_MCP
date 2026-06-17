@@ -487,6 +487,14 @@ class GemiTUI(App):
     engine_online:  reactive[bool] = reactive(False)
     browser_online: reactive[bool] = reactive(False)
 
+    def watch_engine_online(self, value: bool) -> None:
+        self._update_subtitle()
+        self._update_op_buttons()
+
+    def watch_browser_online(self, value: bool) -> None:
+        self._update_subtitle()
+        self._update_op_buttons()
+
     def __init__(self):
         super().__init__()
         self._mounted = False
@@ -523,6 +531,19 @@ class GemiTUI(App):
         self._engine_autostart()
 
     # ─── Service process management ───────────────────────────────────────────
+
+    @staticmethod
+    def _find_port_pid(port: int) -> str | None:
+        """Return the PID (as str) of the process LISTENING on *port*, or None."""
+        import subprocess as _sp
+        try:
+            out = _sp.check_output(["netstat", "-ano"], text=True, stderr=_sp.DEVNULL)
+            for line in out.splitlines():
+                if f":{port}" in line and "LISTENING" in line:
+                    return line.split()[-1]
+        except Exception:
+            pass
+        return None
 
     def _kill_leftover_engine(self) -> bool:
         """taskkill any process LISTENING on port 18800. Returns True if one was killed."""
@@ -643,16 +664,15 @@ class GemiTUI(App):
         browser = False
         try:
             async with httpx.AsyncClient() as client:
-                r = await client.get(f"{ENGINE_URL}/health", timeout=2.0)
+                r = await client.get(f"{ENGINE_URL}/health", timeout=1.5)
                 online = r.status_code == 200
                 if online:
-                    browser = bool(r.json().get("engine_running"))
+                    data = r.json()
+                    browser = bool(data.get("engine_running"))
         except Exception:
             pass
         self.engine_online  = online
         self.browser_online = browser
-        self._update_subtitle()
-        self._update_op_buttons()
 
     def _update_op_buttons(self) -> None:
         """Flip the ENGINE OPERATIONS buttons between Start/Stop. Driven by the
@@ -1148,35 +1168,40 @@ class GemiTUI(App):
     async def _shutdown_service(self) -> None:
         import subprocess as _sp
 
+        self._append_log("[TUI] _shutdown_service: step 1 — POST /engine/stop")
         try:
             async with httpx.AsyncClient() as c:
-                await c.post(f"{ENGINE_URL}/engine/stop", timeout=5)
-        except Exception:
-            pass
+                await c.post(f"{ENGINE_URL}/engine/stop", timeout=3)
+            self._append_log("[TUI] _shutdown_service: /engine/stop OK")
+        except Exception as e:
+            self._append_log(f"[TUI] _shutdown_service: /engine/stop failed ({e})")
 
-        # Kill by the PID actually listening on port 18800 — this is the
-        # authoritative target and may differ from _service_proc.pid when
-        # a previous engine wasn't fully cleaned up before respawn.
+        # Kill the process actually listening on port 18800. Run in a thread so we
+        # don't block the event loop during netstat (can take ~500 ms on Windows).
+        self._append_log("[TUI] _shutdown_service: step 2 — netstat kill")
         try:
-            out = _sp.check_output(["netstat", "-ano"], text=True, stderr=_sp.DEVNULL)
-            for line in out.splitlines():
-                if ":18800" in line and "LISTENING" in line:
-                    port_pid = line.split()[-1]
-                    _sp.run(
-                        ["taskkill", "/F", "/T", "/PID", port_pid],
-                        check=False, stdout=_sp.DEVNULL, stderr=_sp.DEVNULL,
-                    )
-                    break
-        except Exception:
-            pass
+            port_pid = await asyncio.to_thread(self._find_port_pid, 18800)
+            if port_pid:
+                self._append_log(f"[TUI] _shutdown_service: taskkill PID {port_pid}")
+                await asyncio.to_thread(
+                    _sp.run,
+                    ["taskkill", "/F", "/T", "/PID", port_pid],
+                    check=False, stdout=_sp.DEVNULL, stderr=_sp.DEVNULL,
+                )
+            else:
+                self._append_log("[TUI] _shutdown_service: port 18800 not found in netstat")
+        except Exception as e:
+            self._append_log(f"[TUI] _shutdown_service: netstat/taskkill error ({e})")
 
         # Also kill our managed process handle as belt-and-suspenders.
+        self._append_log(f"[TUI] _shutdown_service: step 3 — proc handle kill (pid={self._service_proc.pid if self._service_proc else 'None'})")
         if self._service_proc is not None:
             try:
                 self._service_proc.kill()
             except Exception:
                 pass
             self._service_proc = None
+        self._append_log("[TUI] _shutdown_service: done")
 
     async def action_reload_config(self) -> None:
         for tab_cls in (EngineTab, AutomationTab, OutputTab, AccountsTab, MatrixTab):
