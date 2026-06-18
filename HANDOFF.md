@@ -91,6 +91,7 @@ Full end-to-end test passed (2026-06-18):
 - [x] SERVICE LOG live output fixed
 - [x] GitHub public repo published
 - [x] TUI: Fixed bug where options update reset user selection (read choices before set_options)
+- [x] TUI: Added "Update & Relaunch" button to ENGINE OPERATIONS and implemented `_update_and_relaunch` worker
 
 ## In Progress
 - None
@@ -109,4 +110,4 @@ Full end-to-end test passed (2026-06-18):
   This is the validation behavior for "confirm saved settings still in menu".
 
 ## Last Updated
-2026-06-18 by Claude — TOOL & MODEL SELECTION feature fully verified. All bugs fixed. Next: expose discover/apply as MCP tools.
+2026-06-18 by Antigravity — Added "Update & Relaunch" button and async worker `_update_and_relaunch` to the TUI app. Ready to continue with MCP server tasks.

@@ -202,6 +202,8 @@ class EngineTab(VerticalScroll):
         with Horizontal(classes="action-row"):
             yield Button("Start Engine",  id="btn-toggle-engine",  variant="primary")
             yield Button("Start Browser", id="btn-toggle-browser", variant="primary")
+        with Horizontal(classes="action-row"):
+            yield Button("⬆ Update & Relaunch", id="btn-update-relaunch", variant="warning")
         yield SettingRow("◎  Headless mode",      Switch(c.get("headless", True),             id="sw-headless"))
         yield SettingRow("▷  Auto-start browser", Switch(c.get("auto_start_browser", True),   id="sw-auto_start"))
         yield SettingRow("↺  Auto-continue loop", Switch(c.get("auto_continue_loop", False),  id="sw-auto_continue"))
@@ -813,6 +815,7 @@ class GemiTUI(App):
         bid = event.button.id or ""
         if   bid == "btn-toggle-engine":     self._toggle_engine_service()
         elif bid == "btn-toggle-browser":    self._toggle_browser()
+        elif bid == "btn-update-relaunch":   self._update_and_relaunch()
         elif bid == "btn-discover":          self._discover_capabilities()
         elif bid == "btn-save-model-tool":   self._save_model_tool()
         elif bid == "btn-apply-model-tool":  self._apply_model_tool()
@@ -885,6 +888,60 @@ class GemiTUI(App):
             self._engine_autostart()
         await asyncio.sleep(1)
         self._poll_status()
+
+    @work(group="engine_ctrl", exclusive=True)
+    async def _update_and_relaunch(self) -> None:
+        import subprocess
+        if self.engine_online:
+            await self._shutdown_service()
+            self._append_log("[update] Engine stopped")
+        
+        git_err = False
+        try:
+            res = await asyncio.to_thread(
+                subprocess.run,
+                ["git", "pull"],
+                capture_output=True,
+                text=True,
+                cwd=str(ROOT)
+            )
+            for line in (res.stdout or "").splitlines():
+                self._append_log(f"[git] {line}")
+            for line in (res.stderr or "").splitlines():
+                self._append_log(f"[git] {line}")
+            if res.returncode != 0:
+                git_err = True
+        except Exception as e:
+            self._append_log(f"[git] Error running git pull: {e}")
+            git_err = True
+
+        try:
+            res_sub = await asyncio.to_thread(
+                subprocess.run,
+                ["git", "submodule", "update", "--remote", "engine"],
+                capture_output=True,
+                text=True,
+                cwd=str(ROOT)
+            )
+            for line in (res_sub.stdout or "").splitlines():
+                self._append_log(f"[git/engine] {line}")
+            for line in (res_sub.stderr or "").splitlines():
+                self._append_log(f"[git/engine] {line}")
+            if res_sub.returncode != 0:
+                git_err = True
+        except Exception as e:
+            self._append_log(f"[git/engine] Error running git submodule update: {e}")
+            git_err = True
+
+        if git_err:
+            self._append_log("[update] Warning: Git update failed or returned a non-zero exit code")
+
+        self._append_log("[update] Relaunching engine service...")
+        self._start_and_stream_service()
+        self._engine_autostart()
+        await asyncio.sleep(1)
+        self._poll_status()
+        self.notify("Engine relaunched with latest code. Restart TUI if TUI code was updated.", timeout=8)
 
     @work(group="browser_ctrl", exclusive=True)
     async def _toggle_browser(self) -> None:
