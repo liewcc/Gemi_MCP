@@ -291,11 +291,12 @@ class EngineTab(VerticalScroll):
             yield Button("New Chat + Submit Prompt + Submit", id="btn-combine-submit", variant="primary")
             yield Button("Redo", id="btn-combine-redo")
             yield Button("Stop", id="btn-combine-stop", variant="error")
-        with Horizontal(classes="action-row"):
-            yield Button("⬆ Update & Relaunch", id="btn-update-relaunch", variant="warning", disabled=True)
 
         with Horizontal(classes="action-row"):
             yield Button("Capture Browser DOM to File", id="btn-capture-dom")
+        yield Rule()
+        with Horizontal(classes="action-row"):
+            yield Button("⬆ Update & Relaunch", id="btn-update-relaunch", variant="warning", disabled=True)
 
     @on(Select.Changed, "#sel-tool")
     def on_sel_tool_changed(self, event: Select.Changed) -> None:
@@ -516,6 +517,7 @@ class GemiTUI(App):
 
     engine_online:  reactive[bool] = reactive(False)
     browser_online: reactive[bool] = reactive(False)
+    _update_status: reactive[str]  = reactive("")
 
     def watch_engine_online(self, value: bool) -> None:
         self._update_subtitle()
@@ -732,12 +734,20 @@ class GemiTUI(App):
         except Exception:
             pass
 
+    def watch__update_status(self, _: str) -> None:
+        self._update_subtitle()
+
     def _update_subtitle(self) -> None:
         cfg     = load_config()
         active  = cfg.get("active_user") or "none"
         engine  = "[green]● online[/green]"  if self.engine_online  else "[red]○ offline[/red]"
         browser = "[green]● browser[/green]" if self.browser_online else "[red]○ browser[/red]"
-        bar_text = f" Engine: {engine}  {browser}  │  {active}  │  q quit · ctrl+r reload "
+        upd     = self._update_status
+        if upd:
+            upd_part = f"  │  {upd}"
+        else:
+            upd_part = ""
+        bar_text = f" Engine: {engine}  {browser}  │  {active}{upd_part}  │  q quit · ctrl+r reload "
         try:
             self.query_one("#status-bar", Static).update(bar_text)
         except Exception:
@@ -935,18 +945,14 @@ class GemiTUI(App):
             git_err = True
 
         if git_err:
-            self._append_log("[update] Warning: Git update failed or returned a non-zero exit code")
+            self._append_log("[update] Warning: Git update had errors — aborting relaunch")
+            return
 
-        self._append_log("[update] Relaunching engine service...")
-        self._start_and_stream_service()
-        self._engine_autostart()
-        await asyncio.sleep(1)
-        self._poll_status()
-        self.notify("Engine relaunched with latest code. Restart TUI if TUI code was updated.", timeout=8)
-        try:
-            self.query_one("#btn-update-relaunch", Button).disabled = True
-        except Exception:
-            pass
+        self._append_log("[update] Stopping engine before relaunch...")
+        await self._shutdown_service()
+        self._append_log("[update] Relaunching TUI...")
+        import os
+        os.execv(sys.executable, [sys.executable] + sys.argv)
 
     @work(thread=True, group="check_updates")
     def _check_for_updates(self) -> None:
@@ -975,6 +981,8 @@ class GemiTUI(App):
 
         if parts:
             self.call_from_thread(self._enable_update_button, parts)
+        else:
+            self.call_from_thread(setattr, self, "_update_status", "[green]✓ Up to date[/green]")
 
     def _enable_update_button(self, parts: list[str]) -> None:
         try:
@@ -983,6 +991,7 @@ class GemiTUI(App):
             btn.label = "⬆ Update & Relaunch  (" + ", ".join(parts) + ")"
         except Exception:
             pass
+        self._update_status = "[yellow]⬆ " + ", ".join(parts) + "[/yellow]"
         self.notify("Updates available: " + ", ".join(parts), timeout=6)
 
     @work(group="browser_ctrl", exclusive=True)
