@@ -204,51 +204,93 @@ class GeminiProvider(ProviderAdapter):
     # ──────────────────────────────────────────────────────────────────────────
     async def discover_capabilities(self):
         """
-        Scans Gemini DOM to find available models and tools.
+        Scans Gemini DOM to find available models, thinking levels, and tools.
+        All options are read dynamically from the live DOM — nothing is hardcoded.
         Updates config.json with discovery results.
         """
         if not self._e.is_running:
             return {"status": "error", "message": "Browser not started"}
 
         self._log("Starting discovery scan...")
-        results = {"models": [], "tools": [], "current_model": "Unknown"}
+        results = {
+            "models": [],
+            "thinking_levels": [],
+            "current_model": "Unknown",
+            "current_thinking_level": None,
+            "tools": [],
+        }
 
         try:
-            # 1. Discover Models
-            # First, check current visible model
-            current_model_el = await self._page.query_selector('button[data-test-id="bard-mode-menu-button"] .logo-pill-label-container span')
+            # 1. Discover Models + Thinking Levels
+            # Read current model from pill header (.picker-primary-text confirmed in DOM)
+            current_model_el = await self._page.query_selector(
+                'button[data-test-id="bard-mode-menu-button"] .picker-primary-text'
+            )
             if current_model_el:
-                results["current_model"] = (await current_model_el.inner_text()).split('\n')[0].strip()
+                results["current_model"] = (await current_model_el.inner_text()).strip()
 
-            # Trigger model menu
+            # Open model menu
             await self._page.click('button[data-test-id="bard-mode-menu-button"]')
-            await asyncio.sleep(1.2)
+            # Wait until at least one model option is in the DOM
+            try:
+                await self._page.wait_for_selector(
+                    'gem-menu-item[data-test-id^="bard-mode-option-"]', timeout=5000
+                )
+            except Exception:
+                self._log("Model menu did not appear.")
 
-            # Extract models using precise selectors based on current Gemini DOM structure.
-            # Strategy:
-            #   1. Primary: target [data-test-id^="bard-mode-option-"] buttons — these are
-            #      the only real model-selection items and exclude the Upgrade container,
-            #      "Thinking level" picker, and the menu title row.
-            #   2. Extract text from .mode-title (e.g. "3.1 Flash-Lite") rather than the
-            #      full button innerText which would also include .mode-desc ("Fastest answers")
-            #      and icon text ("check_circle"), leading to stale/wrong entries like "Fast".
-            #   3. Fallback: if the primary selector yields nothing (Google redesign), fall
-            #      back to .bard-mode-list-button with the same .mode-title extraction.
+            await asyncio.sleep(0.5)
+
+            # Extract model names from gem-menu-item[data-test-id^="bard-mode-option-"]
+            # Text lives in span.label inside gem-menu-item-content.
             results["models"] = await self._page.evaluate('''() => {
-                // Primary: data-test-id prefixed selectors are stable model-button identifiers
-                let items = Array.from(document.querySelectorAll('[data-test-id^="bard-mode-option-"]'));
-
-                // Fallback: class-based selector if data-test-id scheme changes
-                if (items.length === 0) {
-                    items = Array.from(document.querySelectorAll('button.bard-mode-list-button'));
-                }
-
-                return items.map(i => {
-                    // .mode-title contains only the clean model name, nothing else
-                    const titleEl = i.querySelector('.mode-title');
-                    return titleEl ? titleEl.innerText.trim() : i.innerText.split('\\n')[0].trim();
+                return Array.from(
+                    document.querySelectorAll('gem-menu-item[data-test-id^="bard-mode-option-"]')
+                ).map(item => {
+                    const label = item.querySelector('span.label');
+                    return label ? label.innerText.trim() : '';
                 }).filter(t => t.length > 0);
             }''')
+
+            # Read current thinking level from the "Thinking level" menu item sublabel
+            # (sublabel shows the currently active level, e.g. "Standard")
+            results["current_thinking_level"] = await self._page.evaluate('''() => {
+                const item = document.querySelector('gem-menu-item[value="thinking_level"]');
+                if (!item) return null;
+                const sub = item.querySelector('.sublabel');
+                return sub ? sub.innerText.trim() : null;
+            }''')
+
+            # Expand the "Thinking level" sub-menu via JS mouseenter (no Playwright hover
+            # which would fire mouseleave on the parent panel and collapse it)
+            expanded = await self._page.evaluate('''() => {
+                const item = document.querySelector('gem-menu-item[value="thinking_level"]');
+                if (!item) return false;
+                item.dispatchEvent(new MouseEvent('mouseenter', {bubbles: true}));
+                item.dispatchEvent(new MouseEvent('mouseover',  {bubbles: true}));
+                return true;
+            }''')
+
+            if expanded:
+                await asyncio.sleep(0.8)
+                # Collect thinking level options from the sub-menu panel.
+                # The panel is a sibling div[popover] rendered next to the thinking_level item.
+                results["thinking_levels"] = await self._page.evaluate('''() => {
+                    // The sub-menu panel is the nearest div[popover] after the thinking_level item
+                    const parent = document.querySelector('gem-menu-item[value="thinking_level"]');
+                    if (!parent) return [];
+                    // Walk siblings to find the popover div
+                    let el = parent.nextElementSibling;
+                    while (el) {
+                        if (el.hasAttribute('popover') || el.classList.contains('cdk-overlay-popover')) {
+                            return Array.from(el.querySelectorAll('gem-menu-item span.label'))
+                                .map(s => s.innerText.trim())
+                                .filter(t => t.length > 0);
+                        }
+                        el = el.nextElementSibling;
+                    }
+                    return [];
+                }''')
 
             # Close menu
             await self._page.keyboard.press("Escape")
@@ -316,16 +358,20 @@ class GeminiProvider(ProviderAdapter):
             # Close by clicking escape
             await self._page.keyboard.press("Escape")
 
-            # Persist to config.json using standard utility
+            # Only persist the current selections (not the available options — those are
+            # always live-scanned; if the DOM changes they'll simply return empty).
             try:
                 save_config({
                     "discovery": {
                         "last_updated": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        "available_models": results["models"],
-                        "available_tools": results["tools"]
+                        "current_model": results["current_model"],
+                        "current_thinking_level": results["current_thinking_level"],
                     }
                 })
-                self._log(f"Discovery results saved. Models: {len(results['models'])}, Tools: {len(results['tools'])}")
+                self._log(
+                    f"Discovery results saved. Models: {len(results['models'])}, "
+                    f"Thinking: {results['thinking_levels']}, Tools: {len(results['tools'])}"
+                )
             except Exception as e:
                 self._log(f"Failed to save discovery: {e}")
 
@@ -338,62 +384,132 @@ class GeminiProvider(ProviderAdapter):
     # ──────────────────────────────────────────────────────────────────────────
     # apply_settings
     # ──────────────────────────────────────────────────────────────────────────
-    async def apply_settings(self, model_name=None, tool_name=None):
+    async def apply_settings(self, model_name=None, tool_name=None, thinking_level=None):
         """
-        Automates switching to the specified model and/or tool.
+        Switch model, thinking level, and/or tool.
+        All matching is case-insensitive substring; nothing is hardcoded.
         """
         if not self._e.is_running:
             return {"status": "error", "message": "Browser not started"}
 
         try:
-            # 1. Apply Model
-            if model_name:
-                self._log(f"Applying model: {model_name}")
+            # 1. Apply Model and/or Thinking Level (both live in the model menu)
+            if model_name or thinking_level:
                 await self._page.click('button[data-test-id="bard-mode-menu-button"]')
-                await asyncio.sleep(0.8)
+                try:
+                    await self._page.wait_for_selector(
+                        'gem-menu-item[data-test-id^="bard-mode-option-"]', timeout=5000
+                    )
+                except Exception:
+                    pass
+                await asyncio.sleep(0.3)
 
-                await self._page.evaluate(f'''(name) => {{
-                    const items = Array.from(document.querySelectorAll('.mat-mdc-menu-item, [role="menuitem"]'));
-                    const target = items.find(i => {{
-                        const raw = i.innerText.split('\\n')[0].trim().toLowerCase();
-                        return raw.startsWith(name.toLowerCase()) || name.toLowerCase().startsWith(raw);
-                    }});
-                    if (target) target.click();
-                }}''', model_name)
-                await asyncio.sleep(1.5)
+                if model_name:
+                    self._log(f"Applying model: {model_name}")
+                    clicked = await self._page.evaluate('''(name) => {
+                        const items = Array.from(
+                            document.querySelectorAll('gem-menu-item[data-test-id^="bard-mode-option-"]')
+                        );
+                        const target = items.find(i => {
+                            const label = i.querySelector('span.label');
+                            const text = label ? label.innerText.trim().toLowerCase() : '';
+                            return text.includes(name.toLowerCase()) || name.toLowerCase().includes(text);
+                        });
+                        if (target) { target.click(); return true; }
+                        return false;
+                    }''', model_name)
+                    if not clicked:
+                        self._log(f"Model '{model_name}' not found in menu.")
+                    await asyncio.sleep(1.0)
+
+                if thinking_level:
+                    self._log(f"Applying thinking level: {thinking_level}")
+                    # Re-open menu if a model was just selected (it closed)
+                    if model_name:
+                        await self._page.click('button[data-test-id="bard-mode-menu-button"]')
+                        try:
+                            await self._page.wait_for_selector(
+                                'gem-menu-item[value="thinking_level"]', timeout=5000
+                            )
+                        except Exception:
+                            pass
+                        await asyncio.sleep(0.3)
+
+                    # Expand the thinking_level sub-menu via JS events (no Playwright hover
+                    # which would fire mouseleave and collapse the panel)
+                    await self._page.evaluate('''() => {
+                        const item = document.querySelector('gem-menu-item[value="thinking_level"]');
+                        if (item) {
+                            item.dispatchEvent(new MouseEvent('mouseenter', {bubbles: true}));
+                            item.dispatchEvent(new MouseEvent('mouseover',  {bubbles: true}));
+                        }
+                    }''')
+                    await asyncio.sleep(0.8)
+
+                    # Click the matching option in the sub-menu popover
+                    clicked = await self._page.evaluate('''(name) => {
+                        const parent = document.querySelector('gem-menu-item[value="thinking_level"]');
+                        if (!parent) return false;
+                        let el = parent.nextElementSibling;
+                        while (el) {
+                            if (el.hasAttribute('popover') || el.classList.contains('cdk-overlay-popover')) {
+                                const items = Array.from(el.querySelectorAll('gem-menu-item'));
+                                const target = items.find(i => {
+                                    const label = i.querySelector('span.label');
+                                    const text = label ? label.innerText.trim().toLowerCase() : '';
+                                    return text.includes(name.toLowerCase()) || name.toLowerCase().includes(text);
+                                });
+                                if (target) { target.click(); return true; }
+                                break;
+                            }
+                            el = el.nextElementSibling;
+                        }
+                        return false;
+                    }''', thinking_level)
+                    if not clicked:
+                        self._log(f"Thinking level '{thinking_level}' not found.")
+                    await asyncio.sleep(1.0)
+
+                # Close menu if still open
+                await self._page.keyboard.press("Escape")
 
             # 2. Apply Tool
             if tool_name:
                 self._log(f"Applying tool: {tool_name}")
-                if tool_name.lower() == "default":
-                    pass
-                else:
-                    # Open Tools drawer
-                    btn = self._page.locator('button.toolbox-drawer-button').first
-                    if await btn.is_visible():
-                        await btn.click()
-                    else:
+                if tool_name.lower() != "default":
+                    opened = False
+                    for sel in ['button[aria-label="Upload & tools"]', 'button.toolbox-drawer-button']:
+                        try:
+                            loc = self._page.locator(sel).first
+                            if await loc.is_visible(timeout=1000):
+                                await loc.click()
+                                opened = True
+                                break
+                        except Exception:
+                            pass
+                    if not opened:
                         await self._page.evaluate('''() => {
-                            const btn = Array.from(document.querySelectorAll('button'))
-                                             .find(b => b.innerText.includes("Tools"));
-                            if (btn) btn.click();
+                            const b = Array.from(document.querySelectorAll('button'))
+                                .find(b => (b.getAttribute('aria-label') || '').toLowerCase().includes('tools'));
+                            if (b) b.click();
                         }''')
 
                     await asyncio.sleep(1.0)
 
-                    await self._page.evaluate(f'''(name) => {{
-                        const menu = document.getElementById('toolbox-drawer-menu');
-                        if (!menu) return;
-                        const items = Array.from(menu.querySelectorAll('toolbox-drawer-item'));
-                        const target = items.find(i => {{
-                            const label = i.querySelector('.label.gds-label-l') || i.querySelector('.mdc-list-item__primary-text');
+                    # Click matching toolbox-drawer-item by its visible label text
+                    await self._page.evaluate('''(name) => {
+                        const items = Array.from(document.querySelectorAll('toolbox-drawer-item'));
+                        const target = items.find(i => {
+                            const label = i.querySelector('.label.gem-menu-item-label')
+                                       || i.querySelector('.label.gds-label-l')
+                                       || i.querySelector('.mdc-list-item__primary-text');
                             return label && label.innerText.toLowerCase().includes(name.toLowerCase());
-                        }});
-                        if (target) {{
+                        });
+                        if (target) {
                             const btn = target.querySelector('button');
                             if (btn) btn.click();
-                        }}
-                    }}''', tool_name)
+                        }
+                    }''', tool_name)
                     await asyncio.sleep(1.0)
 
             return {"status": "success"}

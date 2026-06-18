@@ -254,16 +254,66 @@ async def get_snapshot():
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/browser/capture_dom")
-async def capture_dom():
+async def capture_dom(menu: str = Query(None)):
+    """
+    Capture full page DOM to data/dom_debug.html.
+    menu=model  → open the model-selector menu first, then capture, then close.
+    menu=tools  → open the tools drawer first, then capture, then close.
+    """
     if not engine.is_running or engine._page is None:
         raise HTTPException(status_code=400, detail="Browser not running")
     try:
-        html = await engine._page.content()
+        page = engine._page
+        if menu == "model":
+            # Click the trigger; menu injects into cdk-overlay-container
+            await page.click('button[data-test-id="bard-mode-menu-button"]')
+            # Wait until the overlay actually has content (up to 5s)
+            await page.wait_for_function(
+                "document.querySelector('.cdk-overlay-container').children.length > 0",
+                timeout=5000
+            )
+            await asyncio.sleep(0.5)
+            # Trigger nested menu button via JS (no Playwright mouse movement that
+            # would cause mouseleave on the panel and collapse the menu)
+            await page.evaluate('''() => {
+                const btn = document.querySelector("button.bard-mode-menu-btn-for-nested-menu");
+                if (btn) {
+                    btn.dispatchEvent(new MouseEvent("mouseenter", {bubbles: true}));
+                    btn.dispatchEvent(new MouseEvent("mouseover", {bubbles: true}));
+                }
+            }''')
+            await asyncio.sleep(0.8)
+        elif menu == "tools":
+            opened = False
+            for sel in ['button[aria-label="Upload & tools"]', 'button.toolbox-drawer-button']:
+                try:
+                    loc = page.locator(sel).first
+                    if await loc.is_visible(timeout=1000):
+                        await loc.click()
+                        opened = True
+                        break
+                except Exception:
+                    pass
+            if not opened:
+                await page.evaluate('''() => {
+                    const b = Array.from(document.querySelectorAll("button"))
+                        .find(b => (b.getAttribute("aria-label") || "").toLowerCase().includes("tools"));
+                    if (b) b.click();
+                }''')
+            await asyncio.sleep(1.5)
+
+        # Capture the overlay content via JS while the panel is still open;
+        # page.content() serialises the live DOM including CDK overlays.
+        html = await page.evaluate('''() => document.documentElement.outerHTML''')
+
+        if menu in ("model", "tools"):
+            await page.keyboard.press("Escape")
+
         from config_utils import get_project_root
         out_path = os.path.join(get_project_root(), "data", "dom_debug.html")
         with open(out_path, "w", encoding="utf-8") as f:
             f.write(html)
-        return {"path": out_path}
+        return {"path": out_path, "menu": menu}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -1561,13 +1611,18 @@ async def discover_capabilities():
 class SettingsRequest(BaseModel):
     model: str = None
     tool: str = None
+    thinking_level: str = None
 
 @app.post("/browser/apply_settings")
 async def apply_settings(req: SettingsRequest):
     if not engine.is_running:
         raise HTTPException(status_code=400, detail="Engine not running")
     try:
-        result = await engine.apply_settings(model_name=req.model, tool_name=req.tool)
+        result = await engine.apply_settings(
+            model_name=req.model,
+            tool_name=req.tool,
+            thinking_level=req.thinking_level,
+        )
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -193,9 +193,8 @@ class SettingRow(Horizontal):
 class EngineTab(VerticalScroll):
     def compose(self) -> ComposeResult:
         c = load_config()
-        disc = c.get("discovery", {})
-        avail_models: list[str] = disc.get("available_models", [])
-        avail_tools:  list[str] = disc.get("available_tools", [])
+        disc = self.app._discovered  # always live-scanned, never from config
+        avail_models:   list[str] = disc.get("models",       [])
 
         # ── ENGINE OPERATIONS (mirrors GemiPersonaPro_DT setup panel) ──
         yield Label("ENGINE OPERATIONS", classes="section-title")
@@ -238,22 +237,37 @@ class EngineTab(VerticalScroll):
 
         yield Label("TOOL & MODEL SELECTION", classes="section-title")
         yield Rule()
-        sel_tool  = c.get("selected_tool",  "") or ""
-        sel_model = c.get("selected_model", "") or ""
+        sel_tool     = c.get("selected_tool",            "") or ""
+        sel_upload   = c.get("selected_upload_tool",     "") or ""
+        sel_model    = c.get("selected_model",           "") or ""
+        sel_thinking = c.get("selected_thinking_level",  "") or ""
 
-        tool_opts: list[tuple[str, str]] = [("Default Tool", "")]
-        tool_opts += [(t, t) for t in avail_tools if t]
+        avail_thinking: list[str] = disc.get("thinking_levels", [])
+        avail_main:     list[str] = disc.get("main_tools",     [])
+        sub_tools_dict: dict      = disc.get("sub_tools",      {})
 
-        model_opts: list[tuple[str, str]] = [(m, m) for m in avail_models if m]
-        if not model_opts:
-            model_opts = [(sel_model, sel_model)] if sel_model else [("(none — click Discover)", "")]
+        main_tool_opts: list[tuple[str, str]] = [(t, t) for t in avail_main    if t]
+        model_opts:     list[tuple[str, str]] = [(m, m) for m in avail_models  if m]
+        thinking_opts:  list[tuple[str, str]] = [(t, t) for t in avail_thinking if t]
 
-        tool_val  = sel_tool  if any(v == sel_tool  for _, v in tool_opts)  else ""
-        model_val = sel_model if any(v == sel_model for _, v in model_opts) else model_opts[0][1]
+        # Sub-menu options depend on the currently saved main tool selection
+        cur_subs:    list[str]         = sub_tools_dict.get(sel_tool, [])
+        sub_opts:    list[tuple[str, str]] = [(t, t) for t in cur_subs if t]
 
+        _ph = [("(click Discover)", "")]
+        tool_val     = sel_tool     if any(v == sel_tool     for _, v in main_tool_opts) else (main_tool_opts[0][1] if main_tool_opts else "")
+        sub_val      = sel_upload   if any(v == sel_upload   for _, v in sub_opts)       else (sub_opts[0][1]       if sub_opts       else "")
+        model_val    = sel_model    if any(v == sel_model    for _, v in model_opts)     else (model_opts[0][1]     if model_opts     else "")
+        thinking_val = sel_thinking if any(v == sel_thinking for _, v in thinking_opts)  else (thinking_opts[0][1]  if thinking_opts  else "")
+
+        # Row 1: main tool menu (mirrors Gemini UI order) + conditional sub-menu
         with Horizontal(classes="action-row"):
-            yield Select(tool_opts,  value=tool_val,  id="sel-tool",  allow_blank=False)
-            yield Select(model_opts, value=model_val, id="sel-model", allow_blank=False)
+            yield Select(main_tool_opts or _ph, value=tool_val, id="sel-tool", allow_blank=False)
+            yield Select(sub_opts or [("(select More... first)", "")], value=sub_val, id="sel-upload", allow_blank=False)
+        # Row 2: model + thinking level
+        with Horizontal(classes="action-row"):
+            yield Select(model_opts    or _ph, value=model_val,    id="sel-model",    allow_blank=False)
+            yield Select(thinking_opts or _ph, value=thinking_val, id="sel-thinking", allow_blank=False)
         with Horizontal(classes="action-row"):
             yield Button("Discover", id="btn-discover")
             yield Button("Save",     id="btn-save-model-tool")
@@ -280,6 +294,18 @@ class EngineTab(VerticalScroll):
 
         with Horizontal(classes="action-row"):
             yield Button("Capture Browser DOM to File", id="btn-capture-dom")
+
+    @on(Select.Changed, "#sel-tool")
+    def on_sel_tool_changed(self, event: Select.Changed) -> None:
+        """When the main tool changes, update the sub-menu with that item's sub-options."""
+        selected = str(event.value) if event.value is not Select.BLANK else ""
+        sub_tools_dict = self.app._discovered.get("sub_tools", {})
+        subs = sub_tools_dict.get(selected, [])
+        sub_select = self.query_one("#sel-upload", Select)
+        if subs:
+            sub_select.set_options([(t, t) for t in subs])
+        else:
+            sub_select.set_options([("(select More... first)", "")])
 
 
 class AutomationTab(VerticalScroll):
@@ -423,7 +449,8 @@ class GemiTUI(App):
 
     .action-row { height: auto; margin: 1 0; }
     Button      { margin: 0 1 0 0; }
-    #sel-tool, #sel-model { width: 1fr; }
+    #sel-tool, #sel-upload { width: 1fr; }
+    #sel-model, #sel-thinking { width: 1fr; }
 
     .acct-status-row   { height: 3; align: left middle; }
     .acct-status-label { width: auto; content-align: left middle; color: $text-muted; }
@@ -500,9 +527,15 @@ class GemiTUI(App):
         super().__init__()
         self._mounted = False
         self._service_proc = None
-        # Job Object keeps the engine bound to this process — if the TUI is
-        # killed via the window 'X' (no action_quit), the OS kills the engine.
         self._job = _create_kill_on_close_job()
+        # Live-scanned menu options — populated by Discover, never read from config.
+        self._discovered: dict = {
+            "models": [], "thinking_levels": [],
+            "main_tools": [],   # ordered: Upload files, Add from Drive, More uploads, Create image, Canvas, More tools
+            "sub_tools": {},    # {"More uploads": [...], "More tools": [...]}
+            # legacy
+            "tools": [], "upload_tools": [],
+        }
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -955,9 +988,37 @@ class GemiTUI(App):
     @work(group="ops", exclusive=True)
     async def _action_combine_submit(self) -> None:
         text = self._get_prompt_text()
-        self.notify("Combine: New Chat + Submit Prompt + Submit…", timeout=10)
+        self.notify("Combine: applying settings → new chat → submit…", timeout=15)
         try:
             async with httpx.AsyncClient() as c:
+                # Auto-apply saved settings before every combine
+                def _sel(wid_id: str) -> str:
+                    try:
+                        v = self.query_one(wid_id, Select).value
+                        return "" if v is Select.BLANK else str(v)
+                    except Exception:
+                        return ""
+                tool     = _sel("#sel-tool")
+                upload   = _sel("#sel-upload")
+                model    = _sel("#sel-model")
+                thinking = _sel("#sel-thinking")
+                for sentinel in ("(click Discover)", "(select More... first)"):
+                    if tool     == sentinel: tool     = ""
+                    if upload   == sentinel: upload   = ""
+                    if model    == sentinel: model    = ""
+                    if thinking == sentinel: thinking = ""
+                effective_tool = upload if upload else tool
+                if model or effective_tool or thinking:
+                    await c.post(
+                        f"{ENGINE_URL}/browser/apply_settings",
+                        json={
+                            "model":          model          or None,
+                            "tool":           effective_tool or None,
+                            "thinking_level": thinking       or None,
+                        },
+                        timeout=60,
+                    )
+
                 await c.post(f"{ENGINE_URL}/browser/new_chat", timeout=30)
                 if text:
                     await c.post(f"{ENGINE_URL}/browser/prompt",
@@ -977,47 +1038,138 @@ class GemiTUI(App):
         except Exception as e:
             self.notify(f"Capture DOM failed: {e}", severity="error")
 
+    def _update_discovered_selects(self) -> None:
+        """Update only the TOOL & MODEL Select widgets in-place — no recompose needed."""
+        disc = self._discovered
+        try:
+            eng = self.query_one(EngineTab)
+        except Exception:
+            return
+
+        def _upd(wid_id: str, opts: list) -> None:
+            if not opts:
+                return
+            try:
+                eng.query_one(wid_id, Select).set_options(opts)
+            except Exception:
+                pass
+
+        _upd("#sel-tool",     [(t, t) for t in disc.get("main_tools",      []) if t])
+        _upd("#sel-model",    [(m, m) for m in disc.get("models",          []) if m])
+        _upd("#sel-thinking", [(t, t) for t in disc.get("thinking_levels", []) if t])
+        # sel-upload updates automatically via on_sel_tool_changed when sel-tool value changes
+
     @work(group="ops", exclusive=True)
     async def _discover_capabilities(self) -> None:
-        self.notify("Discovering models and tools...", timeout=5)
+        self._append_log("[TUI] Discover: scanning...")
         try:
             async with httpx.AsyncClient() as c:
-                await c.post(f"{ENGINE_URL}/browser/discover", timeout=60)
-            self.notify("Discovery complete — reloading selects")
-            await self.query_one(EngineTab).recompose()
+                r = await c.post(f"{ENGINE_URL}/browser/discover", timeout=60)
+            data = r.json().get("data", {})
+            self._discovered = {
+                "models":         data.get("models",        []),
+                "thinking_levels": data.get("thinking_levels", []),
+                "main_tools":     data.get("main_tools",    []),
+                "sub_tools":      data.get("sub_tools",     {}),
+                "tools":          data.get("tools",         []),
+                "upload_tools":   data.get("upload_tools",  []),
+            }
+            self._append_log(
+                f"[TUI] Discover complete: {len(self._discovered['models'])} models, "
+                f"{len(self._discovered['main_tools'])} main tools, "
+                f"sub_tools={list(self._discovered['sub_tools'].keys())}"
+            )
+            self._update_discovered_selects()
         except Exception as e:
+            self._append_log(f"[TUI] Discover failed: {e}")
             self.notify(f"Discover failed: {e}", severity="error")
 
     @work(group="ops", exclusive=True)
     async def _save_model_tool(self) -> None:
         try:
-            tool  = self.query_one("#sel-tool",  Select).value
-            model = self.query_one("#sel-model", Select).value
-            if tool  is Select.BLANK: tool  = ""
-            if model is Select.BLANK: model = ""
-            _dot_save("selected_tool",  tool)
-            _dot_save("selected_model", model)
-            self.notify(f"Saved: model={model or '(default)'} / tool={tool or '(default)'}", timeout=3)
+            tool     = self.query_one("#sel-tool",     Select).value
+            upload   = self.query_one("#sel-upload",   Select).value
+            model    = self.query_one("#sel-model",    Select).value
+            thinking = self.query_one("#sel-thinking", Select).value
+            if tool     is Select.BLANK: tool     = ""
+            if upload   is Select.BLANK: upload   = ""
+            if model    is Select.BLANK: model    = ""
+            if thinking is Select.BLANK: thinking = ""
+            _dot_save("selected_tool",            tool)
+            _dot_save("selected_upload_tool",     upload)
+            _dot_save("selected_model",           model)
+            _dot_save("selected_thinking_level",  thinking)
+            self.notify(
+                f"Saved: model={model or '—'} / thinking={thinking or '—'} / "
+                f"tool={tool or '—'} / upload={upload or '—'}",
+                timeout=3,
+            )
         except Exception as e:
             self.notify(f"Save failed: {e}", severity="error")
 
     @work(group="ops", exclusive=True)
     async def _apply_model_tool(self) -> None:
+        """Discover → validate saved settings → apply → save config."""
         try:
-            tool  = self.query_one("#sel-tool",  Select).value
-            model = self.query_one("#sel-model", Select).value
-            if tool  is Select.BLANK: tool  = ""
-            if model is Select.BLANK: model = ""
-            self.notify(f"Applying: model={model or '(default)'} / tool={tool or '(default)'}...", timeout=5)
+            # Step 1: fresh discover
+            self._append_log("[TUI] Apply: scanning menu...")
+            async with httpx.AsyncClient() as c:
+                r = await c.post(f"{ENGINE_URL}/browser/discover", timeout=60)
+            data = r.json().get("data", {})
+            self._discovered = {
+                "models":         data.get("models",        []),
+                "thinking_levels": data.get("thinking_levels", []),
+                "main_tools":     data.get("main_tools",    []),
+                "sub_tools":      data.get("sub_tools",     {}),
+                "tools":          data.get("tools",         []),
+                "upload_tools":   data.get("upload_tools",  []),
+            }
+            self._update_discovered_selects()
+
+            # Step 2: read validated UI selections
+            def _val(wid_id: str) -> str:
+                v = self.query_one(wid_id, Select).value
+                return "" if v is Select.BLANK else str(v)
+
+            tool     = _val("#sel-tool")
+            upload   = _val("#sel-upload")
+            model    = _val("#sel-model")
+            thinking = _val("#sel-thinking")
+
+            for sentinel in ("(click Discover)", "(select More... first)"):
+                if tool     == sentinel: tool     = ""
+                if upload   == sentinel: upload   = ""
+                if model    == sentinel: model    = ""
+                if thinking == sentinel: thinking = ""
+
+            effective_tool = upload if upload else tool
+            self._append_log(
+                f"[TUI] Apply: model={model or '—'} / thinking={thinking or '—'} / "
+                f"tool={effective_tool or '—'}"
+            )
+
+            # Step 3: apply to browser
             async with httpx.AsyncClient() as c:
                 r = await c.post(
                     f"{ENGINE_URL}/browser/apply_settings",
-                    json={"model": model, "tool": tool},
+                    json={
+                        "model":          model          or None,
+                        "tool":           effective_tool or None,
+                        "thinking_level": thinking       or None,
+                    },
                     timeout=60,
                 )
             msg = r.json().get("message", "done")
-            self.notify(f"Apply: {msg}")
+            self._append_log(f"[TUI] Apply result: {msg}")
+
+            # Step 4: persist
+            _dot_save("selected_tool",           tool)
+            _dot_save("selected_upload_tool",    upload)
+            _dot_save("selected_model",          model)
+            _dot_save("selected_thinking_level", thinking)
+            self._append_log("[TUI] Apply: settings saved to config")
         except Exception as e:
+            self._append_log(f"[TUI] Apply failed: {e}")
             self.notify(f"Apply failed: {e}", severity="error")
 
     @work
