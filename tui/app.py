@@ -202,8 +202,6 @@ class EngineTab(VerticalScroll):
         with Horizontal(classes="action-row"):
             yield Button("Start Engine",  id="btn-toggle-engine",  variant="primary")
             yield Button("Start Browser", id="btn-toggle-browser", variant="primary")
-        with Horizontal(classes="action-row"):
-            yield Button("⬆ Update & Relaunch", id="btn-update-relaunch", variant="warning")
         yield SettingRow("◎  Headless mode",      Switch(c.get("headless", True),             id="sw-headless"))
         yield SettingRow("▷  Auto-start browser", Switch(c.get("auto_start_browser", True),   id="sw-auto_start"))
         yield SettingRow("↺  Auto-continue loop", Switch(c.get("auto_continue_loop", False),  id="sw-auto_continue"))
@@ -293,6 +291,8 @@ class EngineTab(VerticalScroll):
             yield Button("New Chat + Submit Prompt + Submit", id="btn-combine-submit", variant="primary")
             yield Button("Redo", id="btn-combine-redo")
             yield Button("Stop", id="btn-combine-stop", variant="error")
+        with Horizontal(classes="action-row"):
+            yield Button("⬆ Update & Relaunch", id="btn-update-relaunch", variant="warning", disabled=True)
 
         with Horizontal(classes="action-row"):
             yield Button("Capture Browser DOM to File", id="btn-capture-dom")
@@ -565,6 +565,7 @@ class GemiTUI(App):
         self.set_interval(2, self._poll_engine_logs)
         self._start_and_stream_service()
         self._engine_autostart()
+        self._check_for_updates()
 
     # ─── Service process management ───────────────────────────────────────────
 
@@ -942,6 +943,47 @@ class GemiTUI(App):
         await asyncio.sleep(1)
         self._poll_status()
         self.notify("Engine relaunched with latest code. Restart TUI if TUI code was updated.", timeout=8)
+        try:
+            self.query_one("#btn-update-relaunch", Button).disabled = True
+        except Exception:
+            pass
+
+    @work(thread=True, group="check_updates")
+    def _check_for_updates(self) -> None:
+        import subprocess, shutil
+        if not shutil.which("git"):
+            return
+        updates: list[str] = []
+
+        def _count_behind(cwd: str, branch: str = "origin/master") -> int:
+            try:
+                subprocess.run(["git", "fetch", "origin"], cwd=cwd,
+                               capture_output=True, timeout=20)
+                r = subprocess.run(
+                    ["git", "rev-list", f"HEAD..{branch}", "--count"],
+                    cwd=cwd, capture_output=True, text=True, timeout=10)
+                return int(r.stdout.strip() or "0")
+            except Exception:
+                return 0
+
+        n_tui    = _count_behind(str(ROOT))
+        n_engine = _count_behind(str(ROOT / "engine"))
+
+        parts: list[str] = []
+        if n_tui    > 0: parts.append(f"TUI +{n_tui}")
+        if n_engine > 0: parts.append(f"Engine +{n_engine}")
+
+        if parts:
+            self.call_from_thread(self._enable_update_button, parts)
+
+    def _enable_update_button(self, parts: list[str]) -> None:
+        try:
+            btn = self.query_one("#btn-update-relaunch", Button)
+            btn.disabled = False
+            btn.label = "⬆ Update & Relaunch  (" + ", ".join(parts) + ")"
+        except Exception:
+            pass
+        self.notify("Updates available: " + ", ".join(parts), timeout=6)
 
     @work(group="browser_ctrl", exclusive=True)
     async def _toggle_browser(self) -> None:

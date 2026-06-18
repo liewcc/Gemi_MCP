@@ -110,4 +110,4 @@ Full end-to-end test passed (2026-06-18):
   This is the validation behavior for "confirm saved settings still in menu".
 
 ## Last Updated
-2026-06-18 by Antigravity — Added "Update & Relaunch" button and async worker `_update_and_relaunch` to the TUI app. Ready to continue with MCP server tasks.
+2026-06-18 by Antigravity — Implemented "smart update" button in TUI (below COMBINE ACTION CONTROL) with automatic git fetch update checks on mount and re-disabling upon successful update.
