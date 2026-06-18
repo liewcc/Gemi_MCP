@@ -74,30 +74,11 @@ Gemini's tool drawer order (mirrored in `sel-tool`):
 
 ---
 
-## Verification checklist (run once in TUI):
+## TOOL & MODEL SELECTION — VERIFIED ✓
 
-1. **Discovery** — click Discover; Output tab should show:
-   ```
-   [TUI] Discover: scanning...
-   API>> Discovery complete. Models: [...], Main tools (6): [...], Sub-menus: {'More uploads': ['Photos', 'Notebooks'], ...}
-   [TUI] Discover complete: 3 models, 6 main tools, sub_tools=['More uploads', ...]
-   ```
-   And `sel-tool` dropdown should show: Upload files / Add from Drive / More uploads / Create image / Canvas
-
-2. **Sub-menu** — select "More uploads" in `sel-tool` → `sel-upload` should update to Photos / Notebooks
-
-3. **Apply** — select model + thinking + tool, click Apply; Output tab should show:
-   ```
-   [TUI] Apply: scanning menu...
-   API>> Applying model: ...
-   API>> Applying thinking level: ...
-   API>> Applying tool: ...
-   API>> apply_settings done: model=ok, thinking=ok, tool=ok
-   [TUI] Apply result: model=ok, thinking=ok, tool=ok
-   [TUI] Apply: settings saved to config
-   ```
-
-4. **Button state** — Start Engine / Start Browser buttons should NOT flip to "Start" after Discover or Apply
+Full end-to-end test passed (2026-06-18):
+- Discovery: 3 models, 6 main tools, sub_tools = {More uploads: [Photos, Notebooks], More tools: [Create music, Guided learning]}
+- Apply: model=ok, thinking=ok, tool=ok (including Notebooks sub-menu item)
 
 ---
 
@@ -112,13 +93,12 @@ Gemini's tool drawer order (mirrored in `sel-tool`):
 - [x] TUI: Fixed bug where options update reset user selection (read choices before set_options)
 
 ## In Progress
-- None (awaiting user verification run)
+- None
 
 ## Next Steps
-1. **Verify** apply flow end-to-end in TUI (see checklist above)
-2. Complete `gemi-mcp` feature surface (see original task #1 in earlier handoff)
-3. Add DeepSeek support to the engine
-4. Build agy-mcp TUI (separate repo `D:\AI\AGY_MCP`)
+1. Complete `gemi-mcp` MCP tool surface (expose discover/apply as MCP tools in `mcp/server.py`)
+2. Add DeepSeek support to the engine
+3. Build agy-mcp TUI (separate repo `D:\AI\AGY_MCP`)
 
 ## Decisions & Pitfalls
 - Never commit `core/browser_session_sandbox/`, `core/browser_user_data/`, or `data/*.json`
@@ -129,4 +109,4 @@ Gemini's tool drawer order (mirrored in `sel-tool`):
   This is the validation behavior for "confirm saved settings still in menu".
 
 ## Last Updated
-2026-06-18 by Claude — Updated submodule pointer to `6855a8e` (includes sleep/selector fixes); updated HANDOFF to reflect all bugs resolved.
+2026-06-18 by Claude — TOOL & MODEL SELECTION feature fully verified. All bugs fixed. Next: expose discover/apply as MCP tools.
