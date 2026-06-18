@@ -6,40 +6,22 @@
 
 ---
 
-## Current Task — TOOL & MODEL SELECTION (URGENT: has a regression bug)
+## Current Task — TOOL & MODEL SELECTION (needs end-to-end verification)
 
 **Feature:** Live-scan Gemini web UI to discover available models / thinking levels / tools,
 display them in TUI dropdowns, apply selected settings before each conversation.
 
-**Status:** Mostly working — one regression bug introduced at session end that breaks discovery.
+**Status:** All known bugs fixed. Needs a live run to confirm apply flow works end-to-end.
 
-### URGENT BUG TO FIX FIRST
+### All fixes applied (committed)
 
-**File:** `engine/core/providers/gemini.py`
-**Function:** `discover_capabilities`
-**Error seen:** `Discovery failed: 'NoneType' object is not iterable`
-
-**Root cause:** The `_UPLOAD_LABEL_JS` f-string is evaluated as a function body `() => { expr }`
-which has no `return` statement — evaluates to `undefined` → Python gets `None` → iterating `None`
-crashes.
-
-**Exact fix** — change lines ~330-348 (Step A + B). There are TWO bad evaluate calls:
-
-```python
-# BROKEN (returns None — no return in function body):
-upload_base: list = await self._page.evaluate(f'() => {{{_UPLOAD_LABEL_JS}}}')
-...
-all_upload: list = await self._page.evaluate(f'() => {{{_UPLOAD_LABEL_JS}}}')
-```
-
-```python
-# FIXED (concise arrow function — expression is the return value):
-upload_base: list = await self._page.evaluate(f'() => ({_UPLOAD_LABEL_JS})')
-...
-all_upload: list = await self._page.evaluate(f'() => ({_UPLOAD_LABEL_JS})')
-```
-
-Change `{{{_UPLOAD_LABEL_JS}}}` → `({_UPLOAD_LABEL_JS})` in BOTH calls (triple-brace → parens).
+| Fix | Engine commit | Status |
+|-----|--------------|--------|
+| Arrow fn body → expression (discovery crash) | `7e0b719` | ✓ Done |
+| Read user selections BEFORE set_options (wrong defaults) | TUI commit `59e60ea` | ✓ Done |
+| sleep(0.3) → sleep(1.0) after Escape (overlay still active) | `6855a8e` | ✓ Done |
+| Multi-selector for toolbox drawer open | `6855a8e` | ✓ Done |
+| Main repo submodule pointer updated | `5f0ef6a` | ✓ Done |
 
 ---
 
@@ -92,7 +74,7 @@ Gemini's tool drawer order (mirrored in `sel-tool`):
 
 ---
 
-## After fixing the URGENT bug, verify these:
+## Verification checklist (run once in TUI):
 
 1. **Discovery** — click Discover; Output tab should show:
    ```
@@ -130,12 +112,13 @@ Gemini's tool drawer order (mirrored in `sel-tool`):
 - [x] TUI: Fixed bug where options update reset user selection (read choices before set_options)
 
 ## In Progress
-- None
+- None (awaiting user verification run)
 
-## Next Steps (after TOOL & MODEL SELECTION is verified)
-1. Complete `gemi-mcp` feature surface (see original task #1 in earlier handoff)
-2. Add DeepSeek support to the engine
-3. Build agy-mcp TUI (separate repo `D:\AI\AGY_MCP`)
+## Next Steps
+1. **Verify** apply flow end-to-end in TUI (see checklist above)
+2. Complete `gemi-mcp` feature surface (see original task #1 in earlier handoff)
+3. Add DeepSeek support to the engine
+4. Build agy-mcp TUI (separate repo `D:\AI\AGY_MCP`)
 
 ## Decisions & Pitfalls
 - Never commit `core/browser_session_sandbox/`, `core/browser_user_data/`, or `data/*.json`
@@ -146,4 +129,4 @@ Gemini's tool drawer order (mirrored in `sel-tool`):
   This is the validation behavior for "confirm saved settings still in menu".
 
 ## Last Updated
-2026-06-18 by Antigravity — Fixed the TUI selection reset bug in `_apply_model_tool` by reading user selections before updating discovered selects.
+2026-06-18 by Claude — Updated submodule pointer to `6855a8e` (includes sleep/selector fixes); updated HANDOFF to reflect all bugs resolved.
