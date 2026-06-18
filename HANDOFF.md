@@ -127,9 +127,10 @@ Gemini's tool drawer order (mirrored in `sel-tool`):
 - [x] Engine cleanup via Windows Job Object
 - [x] SERVICE LOG live output fixed
 - [x] GitHub public repo published
+- [x] TUI: Fixed bug where options update reset user selection (read choices before set_options)
 
 ## In Progress
-- TOOL & MODEL SELECTION — feature mostly done, URGENT fix needed (see above)
+- None
 
 ## Next Steps (after TOOL & MODEL SELECTION is verified)
 1. Complete `gemi-mcp` feature surface (see original task #1 in earlier handoff)
@@ -145,5 +146,4 @@ Gemini's tool drawer order (mirrored in `sel-tool`):
   This is the validation behavior for "confirm saved settings still in menu".
 
 ## Last Updated
-2026-06-18 by Claude — TOOL & MODEL SELECTION feature built + regression bug introduced at
-session end (f-string JS evaluation, fix documented above). Handing off to Antigravity.
+2026-06-18 by Antigravity — Fixed the TUI selection reset bug in `_apply_model_tool` by reading user selections before updating discovered selects.

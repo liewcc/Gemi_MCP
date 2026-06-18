@@ -1124,9 +1124,7 @@ class GemiTUI(App):
                 "tools":          data.get("tools",         []),
                 "upload_tools":   data.get("upload_tools",  []),
             }
-            self._update_discovered_selects()
-
-            # Step 2: read validated UI selections
+            # Step 2: read user's selections BEFORE set_options() might reset them
             def _val(wid_id: str) -> str:
                 v = self.query_one(wid_id, Select).value
                 return "" if v is Select.BLANK else str(v)
@@ -1135,6 +1133,19 @@ class GemiTUI(App):
             upload   = _val("#sel-upload")
             model    = _val("#sel-model")
             thinking = _val("#sel-thinking")
+
+            # Now update available options (set_options preserves value if still valid,
+            # resets to first option otherwise — which is fine since we already saved the user's choice)
+            self._update_discovered_selects()
+
+            # Validate: if user's saved value is no longer in discovered options, use first available
+            disc = self._discovered
+            main_tools = disc.get("main_tools", [])
+            models     = disc.get("models", [])
+            thinkings  = disc.get("thinking_levels", [])
+            if tool     and tool     not in main_tools:  tool     = main_tools[0]  if main_tools  else ""
+            if model    and model    not in models:      model    = models[0]      if models      else ""
+            if thinking and thinking not in thinkings:   thinking = thinkings[0]   if thinkings   else ""
 
             for sentinel in ("(click Discover)", "(select More... first)"):
                 if tool     == sentinel: tool     = ""
