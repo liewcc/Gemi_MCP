@@ -190,7 +190,7 @@ async def redo_response() -> str:
 # ── 7. Text Chat (existing) ───────────────────────────────────────────────────
 
 @mcp.tool()
-async def send_chat(prompt: str) -> str:
+async def send_chat(prompt: str, new_conversation: bool = True) -> str:
     """Send a text prompt to Gemini and return its text reply.
 
     This is a full round-trip: types the prompt, submits it, waits for
@@ -201,7 +201,10 @@ async def send_chat(prompt: str) -> str:
     logged-in Gemini session.
 
     Args:
-        prompt: The text message to send to Gemini.
+        prompt:           The text message to send to Gemini.
+        new_conversation: If True (default), starts a fresh Gemini chat before
+                          sending — guarantees clean context. Set False to
+                          continue an existing multi-turn conversation.
 
     Returns:
         Gemini's text reply.
@@ -209,7 +212,7 @@ async def send_chat(prompt: str) -> str:
     async with httpx.AsyncClient() as client:
         resp = await client.post(
             f"{ENGINE_URL}/browser/chat",
-            json={"text": prompt},
+            json={"text": prompt, "new_conversation": new_conversation},
             timeout=240.0,
         )
         resp.raise_for_status()
@@ -218,6 +221,44 @@ async def send_chat(prompt: str) -> str:
     if data.get("status") == "success":
         return data.get("text", "")
     raise RuntimeError(data.get("message", "Gemini chat failed with unknown error"))
+
+
+# ── 8. Reset / New Chat ───────────────────────────────────────────────────────
+
+@mcp.tool()
+async def new_chat() -> str:
+    """Clear conversation history and start a new chat session.
+
+    Use this to reset conversation state, switch contexts, or isolate a new
+    task from prior interactions. This clicks the "New chat" button in Gemini.
+
+    Returns:
+        Confirmation message.
+    """
+    data = await _post("/browser/new_chat")
+    if data.get("status") == "success":
+        return f"New chat started: {data.get('message', '')}"
+    raise RuntimeError(data.get("message", "new_chat failed"))
+
+
+# ── 9. Discover Capabilities ──────────────────────────────────────────────────
+
+@mcp.tool()
+async def discover_capabilities() -> str:
+    """Scan Gemini's UI dynamically to discover available models, tools, and options.
+
+    This triggers a live scan of the Gemini page to retrieve currently supported
+    models, thinking levels, main tools, and sub-tools, updating the engine's cache.
+
+    Returns:
+        JSON string containing the discovered capabilities, including lists of models,
+        thinking levels, and tools.
+    """
+    data = await _post("/browser/discover")
+    if data.get("status") == "success":
+        import json
+        return json.dumps(data.get("data", {}), indent=2)
+    raise RuntimeError(data.get("message", "discover_capabilities failed"))
 
 
 if __name__ == "__main__":
