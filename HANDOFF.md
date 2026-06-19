@@ -265,3 +265,10 @@ screen, restore terminal raw-mode). The new process inherited a corrupted termin
 
 ## Last Updated (Claude, 2026-06-19)
 2026-06-19 by Claude — Implemented Steps 1-4 (new_conversation param end-to-end). Smoke test FAILING: new_chat() does not isolate conversations. Hypothesis: URL does not change on New Chat click; URL-change detection times out and we proceed in old convo. Next: add URL logging to confirm, then fix wait logic (see "Current Status" above).
+
+## Last Updated (Claude, 2026-06-19 — session 2)
+Implementation complete and smoke-tested. send_chat new_conversation param works end-to-end:
+- True (default): navigate to config.browser_url (/app), SPA state resets, fresh blank conversation
+- False: continue current conversation
+Gemini Memory (cross-session recall) is a user-level setting, not an engine concern.
+All 4 layers committed: gemini.py, browser_engine.py, engine_service.py, mcp/server.py.
