@@ -17,6 +17,21 @@ unpredictable drift, eventual token limit breach.
 `send_chat`. Default `True` forces a new chat before every call. Pass `False` to continue
 an existing multi-turn conversation.
 
+### Current Status (2026-06-19)
+
+Steps 1–4 code is **committed** but **smoke test FAILING** — `new_conversation=True` does NOT isolate conversations. Gemini still remembers tokens from previous `send_chat` calls.
+
+**Root cause hypothesis:** Clicking the "New Chat" button may NOT change the URL in all Gemini UI states. Our URL-change detection times out (8s), we proceed, but we're still in the old conversation. Need to add logging to confirm.
+
+**Next debugging steps:**
+1. Add a `self._log(f"URL before new_chat: {url_before}, after: {self._page.url}")` and check engine.log after a failed test to see what URL Gemini is actually on.
+2. If URL doesn't change: try `page.evaluate` to click the button and then `page.wait_for_navigation()` instead of polling.
+3. Alternative: use `navigate("https://gemini.google.com/app")` BUT first check if `/app` actually loads a fresh chat or the last conversation — open the browser and manually observe what URL you end up on after clicking New Chat vs navigating to /app.
+4. If Gemini always stays at `/app` for new chats (no URL change), switch to checking for absence of `model-response` elements after a configurable grace period (e.g. 1.5s after click).
+
+**Files to check:**
+- `engine/core/providers/gemini.py` — `new_chat()` around line 2222
+
 ### Implementation Plan
 
 #### Step 1 — `gemini.py`: harden `new_chat()` with confirmed-ready wait
@@ -244,6 +259,9 @@ screen, restore terminal raw-mode). The new process inherited a corrupted termin
 ## Last Updated
 2026-06-19 by Antigravity — Implemented Step 4 (mcp/server.py tool signature override with `new_conversation: bool = True`). Updated HANDOFF.md.
 
-## Previous Last Updated
+## Previous Last Updated (archived)
 2026-06-19 by Antigravity — Implemented Edit 1 (harden new_chat in engine/core/providers/gemini.py) and Edit 2 (ChatRequest and /browser/chat handler in engine/core/engine_service.py) as requested.
 
+
+## Last Updated (Claude, 2026-06-19)
+2026-06-19 by Claude — Implemented Steps 1-4 (new_conversation param end-to-end). Smoke test FAILING: new_chat() does not isolate conversations. Hypothesis: URL does not change on New Chat click; URL-change detection times out and we proceed in old convo. Next: add URL logging to confirm, then fix wait logic (see "Current Status" above).
