@@ -221,6 +221,7 @@ Full end-to-end test passed (2026-06-18):
 - [x] TUI: Added "Update & Relaunch" button to ENGINE OPERATIONS and implemented `_update_and_relaunch` worker
 - [x] Complete `gemi-mcp` MCP tool surface: exposed `discover_capabilities` and `new_chat` tools in `mcp/server.py`.
 - [x] Fix `send_chat` state management in `engine/core/providers/gemini.py` (pre-flight checks, overlay dismissal, busy checks, refusal/quota keyword scanning).
+- [x] TUI: Replaced git-based update detection with JSON version comparison (version.json)
 - [x] TUI: Fixed "Update & Relaunch" producing black/grey blocks — see **Decisions & Pitfalls** below
 
 ## In Progress
@@ -341,7 +342,4 @@ screen, restore terminal raw-mode). The new process inherited a corrupted termin
   This is the validation behavior for "confirm saved settings still in menu".
 
 ## Last Updated
-2026-06-20 by Antigravity — Implemented `get_last_response` feature end-to-end.
-Files changed: engine/core/providers/gemini.py, engine/core/browser_engine.py,
-engine/core/engine_service.py, mcp/server.py. Engine submodule committed first
-(972ec9b), then parent repo (179ef07). Not pushed.
+2026-06-20 by Antigravity — Replaced git-based update checks with json version.json comparison. Committed version.json in both engine (29a779d) and parent repo (c6a0aa1). Not pushed.

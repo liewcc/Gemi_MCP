@@ -9,6 +9,17 @@
 
 ---
 
+## 2026-06-20 — Replace git update-check with version.json semver comparison
+
+**Why:** The TUI checked for updates by running git commands (`git fetch` + `git rev-list`) on both main repo and engine submodule. Replacing this with a JSON semver comparison against raw GitHub URLs simplifies the update flow and avoids git dependency for update checks.
+**Changes:**
+- `engine/version.json`: Created with initial version `1.0.0`.
+- `version.json`: Created with initial version `1.0.0`.
+- `tui/app.py`: Replaced `_check_for_updates` logic to fetch remote versions via GitHub raw URLs and compare with local versions.
+**Verified:** Syntax check passed (`python -m py_compile tui/app.py`). Submodule and parent repo successfully committed.
+
+---
+
 ## 2026-06-20 — Add `get_last_response` tool (Claude timeout resilience)
 
 **Why:** When Claude delegates a long query to Gemini via `send_chat`, the MCP call can
