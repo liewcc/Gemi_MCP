@@ -9,6 +9,13 @@
 
 ---
 
+## 2026-06-20 — Auto-register gemi-mcp with Antigravity in setup step 7
+
+**Why:** To streamline the installation experience by automatically configuring the gemi-mcp MCP server for users using any of the Antigravity products (CLI, Desktop, IDE).
+**Changes:**
+- `setup.bat`: Renumbered all existing steps to total 7. Updated Claude Code exit routes to go to `:register_antigravity` label instead of `:done`. Added a new step 7 to detect Antigravity config, prompt user, and safely merge mcp servers config into `mcp_config.json` via a temp Python script.
+**Verified:** Verified pathing syntax and the Python detection command using CMD wrapper.
+
 ## 2026-06-20 — Refactor new_chat in DeepSeekProvider for Cloudflare and validation readiness
 
 **Why:** DeepSeek web UI often presents Cloudflare verification checks or login challenge screen which blocks input field visibility. Checking login directly on page load was fragile and crashed. Checking input field presence first allows us to detect if the page needs human interaction and relaunch a headed browser cleanly.

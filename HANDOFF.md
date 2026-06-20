@@ -6,7 +6,17 @@
 
 ---
 
-## Current Task — COMPLETE ✓ (DeepSeek provider fully working)
+## Current Task — Antigravity Auto-registration in Setup COMPLETE ✓
+
+**Status:** Auto-registration step successfully implemented in `setup.bat` as step [7/7], verified, and logged.
+
+**Changes:**
+- `setup.bat`: Renumbered steps to `[X/7]`.
+- Added `:register_antigravity` logic to check `agy.exe` presence in `%LOCALAPPDATA%`.
+- Merges config safely into `%USERPROFILE%\.gemini\config\mcp_config.json` via a temp python script if approved.
+- Verified and logged in `MAINTENANCE.md`.
+
+## Previous Task — COMPLETE ✓ (DeepSeek provider fully working)
 
 **Status:** All DeepSeek features implemented, tested, and committed.
 
@@ -374,4 +384,4 @@ screen, restore terminal raw-mode). The new process inherited a corrupted termin
   This is the validation behavior for "confirm saved settings still in menu".
 
 ## Last Updated
-2026-06-20 by Antigravity — Implemented service-switching, DeepSeek provider, selector fixes, get_last_response, content-stabilization poll, SVG-based generating checks, attach_files, redo_response, login detection, automated headed browser relaunch, and new_chat refactor for verification readiness on DeepSeek. Did not commit or push.
+2026-06-20 by Antigravity — Renumbered setup.bat steps to [X/7] and added step [7/7] to auto-register gemi-mcp with Antigravity products using a merge Python script. Committed and pushed.
