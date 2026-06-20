@@ -9,6 +9,28 @@
 
 ---
 
+## 2026-06-20 — Refactor new_chat in DeepSeekProvider for Cloudflare and validation readiness
+
+**Why:** DeepSeek web UI often presents Cloudflare verification checks or login challenge screen which blocks input field visibility. Checking login directly on page load was fragile and crashed. Checking input field presence first allows us to detect if the page needs human interaction and relaunch a headed browser cleanly.
+**Changes:**
+- `engine/core/providers/deepseek.py`: Refactored `new_chat()`. It now checks for the chat input text area visibility (15s timeout). If not found, it flags `input_ready=False` and automatically switches to a headed browser to let the user complete challenges or login. If ready, it logs login state as optional debug information and proceeds with `"success"`.
+**Verified:** Compiled successfully via `py_compile`. Did not commit or push.
+
+## 2026-06-20 — Resolve window state and navigation issues in DeepSeek headed login relaunch
+
+**Why:** Relaunching the browser via `start()` did not navigate to DeepSeek as `url` parameter was unused, and it minimized the window. Now we explicitly navigate and restore the window state using CDP.
+**Changes:**
+- `engine/core/providers/deepseek.py`: Added `navigate()` call and a CDP block in `new_chat()`'s unauthenticated handler to force the browser window state to `"normal"` and focus it.
+**Verified:** Compiled successfully via `py_compile`. Did not commit or push.
+
+## 2026-06-20 — Auto-relaunch headed browser for DeepSeek manual login
+
+**Why:** When DeepSeek was not logged in, the user had to manually open a browser or configuration to log in, which was not interactive. Now, we automatically stop the headless instance and launch a headed instance if login is required.
+**Changes:**
+- `engine/core/providers/deepseek.py`: Modified `new_chat()`'s unauthenticated handler. If login state check fails, it captures the profile name, stops the headless browser, and starts a headed browser targeting DeepSeek to prompt the user to log in.
+- `engine/core/browser_engine.py`: Checked `start()` method structure for instance variables.
+**Verified:** Compiled successfully via `py_compile`. Did not commit or push.
+
 ## 2026-06-20 — Add login detection support for DeepSeek provider
 
 **Why:** DeepSeek provider lacked automated detection for account login state, potentially proceeding with unauthenticated sessions leading to failures.
