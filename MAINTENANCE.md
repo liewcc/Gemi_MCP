@@ -9,6 +9,13 @@
 
 ---
 
+## 2026-06-20 — Add login detection support for DeepSeek provider
+
+**Why:** DeepSeek provider lacked automated detection for account login state, potentially proceeding with unauthenticated sessions leading to failures.
+**Changes:**
+- `engine/core/providers/deepseek.py`: Implemented `_check_login` to query for the user avatar (`img[src*="user-avatar"]`) and walk DOM structure to extract username. Modified `new_chat` to enforce this check, returning `login_required` status if not authenticated. Also updated `send_chat` to handle and propagate `login_required` when it launches a new conversation.
+**Verified:** Compiled successfully via `py_compile`. Did not commit or push.
+
 ## 2026-06-20 — Implement redo_response for DeepSeek provider
 
 **Why:** DeepSeek provider lacked support for the `redo_response` (regenerate) action, which is needed to trigger a retry on an AI response.

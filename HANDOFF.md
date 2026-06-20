@@ -256,6 +256,7 @@ Full end-to-end test passed (2026-06-18):
 1. Build agy-mcp TUI (separate repo `D:\AI\AGY_MCP`)
 
 ## Done (this session — 2026-06-20)
+- [x] DeepSeek login detection — implemented `_check_login` using DOM hierarchy walking from the avatar (`img[src*="user-avatar"]`) to extract username, and updated `new_chat` to enforce the login state. Modified `send_chat` to handle and propagate `login_required` status when starting a new conversation. Tested syntax compilation.
 - [x] DeepSeek redo_response implementation — queried DeepSeek to identify the regenerate button's stable circular arrow SVG path (`svg path[d*="7.92136"]`) in DOM debug, and implemented `redo_response` in deepseek.py with a content-stabilization poll. Verified compilation.
 - [x] Service-switching mechanism & DeepSeek provider — added ability to switch between Gemini and DeepSeek providers at runtime via `/browser/switch_service` route and `switch_service` MCP tool. Implemented `DeepSeekProvider` in `engine/core/providers/deepseek.py`. Not committed/pushed as requested.
 - [x] `get_last_response` MCP tool — implemented across all 3 layers (gemini.py, engine_service.py, mcp/server.py), smoke tested ✓
@@ -371,5 +372,4 @@ screen, restore terminal raw-mode). The new process inherited a corrupted termin
   This is the validation behavior for "confirm saved settings still in menu".
 
 ## Last Updated
-2026-06-20 by Claude Sonnet 4.6 — All DeepSeek work committed (engine submodule a4b41b3). redo_response live-tested: SVG fingerprint 7.92136 found Regenerate, content-stabilization poll confirmed different output after redo. Main repo commit pending.
-
+2026-06-20 by Antigravity — Implemented service-switching, DeepSeek provider, selector fixes, get_last_response, content-stabilization poll, SVG-based generating checks, attach_files, redo_response, and login detection support for DeepSeek. Did not commit or push.
