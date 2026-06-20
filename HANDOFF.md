@@ -6,7 +6,31 @@
 
 ---
 
-## Current Task — send_chat STATE MANAGEMENT OVERHAUL (Plan C)
+## Current Task — COMPLETE ✓ (DeepSeek provider fully working)
+
+**Status:** All DeepSeek features implemented, tested, and committed.
+
+**What works:**
+- `switch_service("deepseek")` → navigates to chat.deepseek.com ✓
+- `new_chat()` → ignores config.json Gemini URL, always uses BASE_URL ✓
+- `send_chat()` → content-stabilization poll (3×0.8s), correct selectors ✓
+- `attach_files()` → upload completion via `ds-button--disabled` class ✓
+- `apply_settings()` → Instant/Expert/Vision mode toggle via span text ✓
+- `redo_response()` → SVG path `d*="7.92136"` fingerprint + stabilization poll ✓ (TESTED LIVE)
+- `get_last_response()` → reads `div.ds-markdown`, checks primary btn SVG state ✓
+- `stop_response()` → SVG path check to distinguish stop vs send state ✓
+
+**Correct attach+send flow (important):**
+```
+new_chat() → attach_files([...]) → send_chat(new_conversation=False)
+```
+Do NOT use `new_conversation=True` with attachments — it calls `new_chat()` internally → clears files.
+
+**Committed:** engine submodule `a4b41b3`
+
+---
+
+## Previous Task — send_chat STATE MANAGEMENT OVERHAUL (Plan C)
 
 **Problem:** `send_chat` has no mechanism to guarantee clean state before each call.
 It calls `prepare_chat_state()` (dismisses overlays, waits for idle) but **never starts a new
@@ -229,12 +253,14 @@ Full end-to-end test passed (2026-06-18):
   - The fix is in `tui/app.py`. After the next successful update run, mark this done and move to Done.
 
 ## Next Steps
-1. Add DeepSeek support to the engine
-2. Build agy-mcp TUI (separate repo `D:\AI\AGY_MCP`)
+1. Build agy-mcp TUI (separate repo `D:\AI\AGY_MCP`)
 
 ## Done (this session — 2026-06-20)
+- [x] DeepSeek redo_response implementation — queried DeepSeek to identify the regenerate button's stable circular arrow SVG path (`svg path[d*="7.92136"]`) in DOM debug, and implemented `redo_response` in deepseek.py with a content-stabilization poll. Verified compilation.
+- [x] Service-switching mechanism & DeepSeek provider — added ability to switch between Gemini and DeepSeek providers at runtime via `/browser/switch_service` route and `switch_service` MCP tool. Implemented `DeepSeekProvider` in `engine/core/providers/deepseek.py`. Not committed/pushed as requested.
 - [x] `get_last_response` MCP tool — implemented across all 3 layers (gemini.py, engine_service.py, mcp/server.py), smoke tested ✓
 - [x] Version-based update detection — replaced git commit-count with `version.json` semver comparison in both Gemi_MCP (tui/app.py) and GemiPersonaPro_DT (app/main.js + preload.js). Gemi_Engine now has shared version.json.
+
 
 ---
 
@@ -345,4 +371,5 @@ screen, restore terminal raw-mode). The new process inherited a corrupted termin
   This is the validation behavior for "confirm saved settings still in menu".
 
 ## Last Updated
-2026-06-20 by Antigravity — Replaced git-based update checks with json version.json comparison. Committed version.json in both engine (29a779d) and parent repo (c6a0aa1). Not pushed.
+2026-06-20 by Claude Sonnet 4.6 — All DeepSeek work committed (engine submodule a4b41b3). redo_response live-tested: SVG fingerprint 7.92136 found Regenerate, content-stabilization poll confirmed different output after redo. Main repo commit pending.
+

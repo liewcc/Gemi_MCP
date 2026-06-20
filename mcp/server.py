@@ -281,5 +281,31 @@ async def discover_capabilities() -> str:
     raise RuntimeError(data.get("message", "discover_capabilities failed"))
 
 
+# ── 10. Service Switching ─────────────────────────────────────────────────────
+
+@mcp.tool()
+async def switch_service(service: str) -> str:
+    """Switch the active AI service provider (e.g. 'gemini' or 'deepseek').
+
+    This changes which web UI the engine drives. After switching, all subsequent
+    tool calls (send_chat, new_chat, etc.) target the new service.
+
+    Currently supported services:
+      - "gemini"   — Google Gemini web UI (default)
+      - "deepseek" — DeepSeek chat web UI
+
+    Args:
+        service: Name of the service to switch to (case-insensitive).
+
+    Returns:
+        Confirmation message or error description.
+    """
+    data = await _post("/browser/switch_service", {"service": service})
+    if data.get("status") == "success":
+        return f"Switched to service: {service}. {data.get('message', '')}"
+    return f"Error: {data.get('message', 'switch_service failed')}"
+
+
 if __name__ == "__main__":
     mcp.run()
+

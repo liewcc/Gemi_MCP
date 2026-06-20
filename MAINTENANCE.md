@@ -9,6 +9,25 @@
 
 ---
 
+## 2026-06-20 — Implement redo_response for DeepSeek provider
+
+**Why:** DeepSeek provider lacked support for the `redo_response` (regenerate) action, which is needed to trigger a retry on an AI response.
+**Changes:**
+- `engine/core/providers/deepseek.py`: Implemented `redo_response` method. It locates the circular arrow refresh icon using the unique SVG path selector (`svg path[d*="7.92136"]`) found in DOM debug data, clicks its closest role="button" parent, and uses a content-stabilization poll to wait until the text stabilizes.
+**Verified:** Compiled successfully via `py_compile`. Did not commit or push.
+
+## 2026-06-20 — Service-switching mechanism and DeepSeek provider support
+
+**Why:** To allow switching the active AI service provider (Gemini or DeepSeek) at runtime.
+**Changes:**
+- `engine/core/providers/deepseek.py`: Created `DeepSeekProvider` implementing the base provider adapter interface with specific methods. Added missing `get_last_response` method. Solved stop-button ambiguity by using a content-stabilization poll in `send_chat` and a smart SVG path coordinates check in `get_last_response` and `stop_response` to dynamically check if the primary button is in the stop state versus the send state.
+- `engine/core/browser_engine.py`: Added import of `DeepSeekProvider`, registry mapping `"deepseek"` to the class, `self._active_service` tracking, and `switch_provider` implementation.
+- `engine/core/engine_service.py`: Added `SwitchServiceRequest` request model and `/browser/switch_service` POST endpoint.
+- `mcp/server.py`: Added `switch_service` MCP tool.
+**Verified:** Checked syntax, content stabilization poll, and SVG coordinates check logic. Did not commit or push as per user instruction.
+
+
+
 ## 2026-06-20 — Replace git update-check with version.json semver comparison
 
 **Why:** The TUI checked for updates by running git commands (`git fetch` + `git rev-list`) on both main repo and engine submodule. Replacing this with a JSON semver comparison against raw GitHub URLs simplifies the update flow and avoids git dependency for update checks.
