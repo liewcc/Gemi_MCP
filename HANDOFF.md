@@ -225,13 +225,16 @@ Full end-to-end test passed (2026-06-18):
 - [x] TUI: Fixed "Update & Relaunch" producing black/grey blocks — see **Decisions & Pitfalls** below
 
 ## In Progress
-- [ ] **send_chat state management overhaul (Plan C)** — Steps 1, 2, 3, 4 implemented. Step 5 (smoke test) needs completion.
 - [ ] **Update & Relaunch — needs live verification** (fix applied 2026-06-19, not yet tested with a real update)
   - The fix is in `tui/app.py`. After the next successful update run, mark this done and move to Done.
 
 ## Next Steps
 1. Add DeepSeek support to the engine
 2. Build agy-mcp TUI (separate repo `D:\AI\AGY_MCP`)
+
+## Done (this session — 2026-06-20)
+- [x] `get_last_response` MCP tool — implemented across all 3 layers (gemini.py, engine_service.py, mcp/server.py), smoke tested ✓
+- [x] Version-based update detection — replaced git commit-count with `version.json` semver comparison in both Gemi_MCP (tui/app.py) and GemiPersonaPro_DT (app/main.js + preload.js). Gemi_Engine now has shared version.json.
 
 ---
 
