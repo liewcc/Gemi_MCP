@@ -384,4 +384,4 @@ screen, restore terminal raw-mode). The new process inherited a corrupted termin
   This is the validation behavior for "confirm saved settings still in menu".
 
 ## Last Updated
-2026-06-20 by Antigravity — Renumbered setup.bat steps to [X/7] and added step [7/7] to auto-register gemi-mcp with Antigravity products using a merge Python script. Committed and pushed.
+2026-06-21 by Antigravity — Fixed Antigravity detection in setup.bat step 7 to check all three products (CLI, Desktop, IDE). Committed and pushed.

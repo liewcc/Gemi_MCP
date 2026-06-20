@@ -90,7 +90,12 @@ if %ERRORLEVEL% equ 0 (
 :register_antigravity
 echo.
 echo [7/7] Registering with Antigravity...
-if not exist "%LOCALAPPDATA%\agy\bin\agy.exe" (
+set "AGY_FOUND="
+if exist "%LOCALAPPDATA%\agy\bin\agy.exe" set "AGY_FOUND=1"
+if exist "%LOCALAPPDATA%\Programs\Antigravity\Antigravity.exe" set "AGY_FOUND=1"
+if exist "%LOCALAPPDATA%\Programs\Antigravity IDE\Antigravity IDE.exe" set "AGY_FOUND=1"
+
+if not defined AGY_FOUND (
     echo   WARNING: Antigravity installation not found.
     echo   If you install it later, register manually by adding this to:
     echo     %%USERPROFILE%%\.gemini\config\mcp_config.json

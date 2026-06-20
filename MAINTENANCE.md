@@ -9,6 +9,13 @@
 
 ---
 
+## 2026-06-21 — Detect all three Antigravity products in setup step 7
+
+**Why:** The initial implementation only checked for the CLI path, causing the auto-registration step to be skipped for Desktop or IDE-only installations.
+**Changes:**
+- `setup.bat`: Replaced the single `%LOCALAPPDATA%\agy\bin\agy.exe` existence check with checks for all three installation paths (CLI, Desktop, IDE). Set `AGY_FOUND=1` if any of them is present.
+**Verified:** Verified syntax and logical flow using git diff and batch file analysis.
+
 ## 2026-06-20 — Auto-register gemi-mcp with Antigravity in setup step 7
 
 **Why:** To streamline the installation experience by automatically configuring the gemi-mcp MCP server for users using any of the Antigravity products (CLI, Desktop, IDE).
