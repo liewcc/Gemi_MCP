@@ -40,10 +40,19 @@ if %ERRORLEVEL% neq 0 (
 )
 
 echo.
-echo [4/4] Creating required runtime directories...
+echo [4/5] Creating required runtime directories...
 if not exist "data" mkdir "data"
 if not exist "core\browser_user_data" mkdir "core\browser_user_data"
 if not exist "core\browser_screen_capture" mkdir "core\browser_screen_capture"
+
+echo.
+echo [5/5] Creating desktop shortcut...
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ws = New-Object -ComObject WScript.Shell; $lnk = $ws.CreateShortcut([Environment]::GetFolderPath('Desktop') + '\Gemi MCP.lnk'); $lnk.TargetPath = '%~dp0run.bat'; $lnk.WorkingDirectory = '%~dp0'; $lnk.IconLocation = '%~dp0img\logo.ico'; $lnk.Save()"
+if %ERRORLEVEL% neq 0 (
+    echo   WARNING: Could not create desktop shortcut.
+) else (
+    echo   Shortcut created: Desktop\Gemi MCP.lnk
+)
 
 echo.
 echo ============================================
