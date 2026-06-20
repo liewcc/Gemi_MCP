@@ -231,6 +231,91 @@ Full end-to-end test passed (2026-06-18):
 ## Next Steps
 1. Add DeepSeek support to the engine
 2. Build agy-mcp TUI (separate repo `D:\AI\AGY_MCP`)
+3. **Add `get_last_response` tool** — see proposal below
+
+---
+
+## Proposed Feature — `get_last_response` (Claude timeout resilience)
+
+**Problem:** When Claude delegates a long query to gemi via `send_chat`, the MCP call
+times out before Gemini finishes thinking. Claude sees a timeout error and has no way to
+know if the response is still being generated or was lost. This causes Claude to either
+give up or re-send the same prompt (wasting quota and causing duplicate context).
+
+**Root cause:** `send_chat` blocks until Gemini returns a complete response. Extended
+thinking (Gemini 3.5 Flash + Extended level) can take 60–120 s, which exceeds the MCP
+call timeout.
+
+**Proposed solution: add a `get_last_response` tool**
+
+The Gemini browser tab continues rendering even after the MCP call times out. A new tool
+that reads the current DOM state of the last assistant message allows Claude to poll for
+the result without re-submitting the prompt.
+
+### Implementation sketch
+
+**`engine/core/providers/gemini.py`** — add method:
+```python
+async def get_last_response(self) -> dict:
+    """Read the current text of the last model-response element in the DOM.
+    Returns partial text if Gemini is still generating; empty string if none found."""
+    try:
+        text = await self._page.evaluate("""
+            () => {
+                const els = document.querySelectorAll('model-response');
+                if (!els.length) return '';
+                const last = els[els.length - 1];
+                return last.innerText || last.textContent || '';
+            }
+        """)
+        # Check if Gemini is still generating (stop button visible)
+        still_generating = await self._page.is_visible('button[aria-label="Stop response"]')
+        return {"text": text.strip(), "done": not still_generating}
+    except Exception as e:
+        return {"text": "", "done": False, "error": str(e)}
+```
+
+**`engine/core/engine_service.py`** — add route:
+```python
+@app.get("/browser/last_response")
+async def get_last_response():
+    result = await engine.get_last_response()
+    return {"status": "success", **result}
+```
+
+**`mcp/server.py`** — add tool:
+```python
+@mcp.tool()
+async def get_last_response() -> str:
+    """Read whatever Gemini has generated so far in the current chat.
+
+    Use this after send_chat times out — the browser tab may still be generating.
+    Returns the current response text and a 'done' flag.
+    Poll every few seconds until done=True.
+    """
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(f"{ENGINE_URL}/browser/last_response", timeout=10.0)
+        resp.raise_for_status()
+        data = resp.json()
+    done = data.get("done", False)
+    text = data.get("text", "")
+    return f"done={done}\n\n{text}"
+```
+
+### Claude's usage pattern (after this tool exists)
+```
+send_chat(prompt, timeout=30) → TimeoutError
+    ↓ do NOT retry
+get_last_response() → {"done": False, "text": "...partial..."}
+    ↓ wait ~10s
+get_last_response() → {"done": True, "text": "...full answer..."}
+    ↓ use the answer
+```
+
+### Files to touch (in order)
+1. `engine/core/providers/gemini.py` — add `get_last_response()`
+2. `engine/core/engine_service.py` — add `/browser/last_response` GET route
+3. `mcp/server.py` — add `get_last_response` MCP tool
 
 ## Decisions & Pitfalls
 
@@ -265,6 +350,11 @@ screen, restore terminal raw-mode). The new process inherited a corrupted termin
 
 ## Last Updated (Claude, 2026-06-19)
 2026-06-19 by Claude — Implemented Steps 1-4 (new_conversation param end-to-end). Smoke test FAILING: new_chat() does not isolate conversations. Hypothesis: URL does not change on New Chat click; URL-change detection times out and we proceed in old convo. Next: add URL logging to confirm, then fix wait logic (see "Current Status" above).
+
+## Last Updated (Claude, 2026-06-20)
+2026-06-20 by Claude — Added `get_last_response` feature proposal under Next Steps.
+Motivation: Claude times out waiting for gemi extended thinking, but the browser tab
+keeps generating. This tool lets Claude poll for the result without re-submitting.
 
 ## Last Updated (Claude, 2026-06-19 — session 2)
 Implementation complete and smoke-tested. send_chat new_conversation param works end-to-end:
