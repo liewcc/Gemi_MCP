@@ -531,6 +531,7 @@ class GemiTUI(App):
         super().__init__()
         self._mounted = False
         self._service_proc = None
+        self._relaunch_on_exit = False
         self._job = _create_kill_on_close_job()
         # Live-scanned menu options — populated by Discover, never read from config.
         self._discovered: dict = {
@@ -950,9 +951,12 @@ class GemiTUI(App):
 
         self._append_log("[update] Stopping engine before relaunch...")
         await self._shutdown_service()
-        self._append_log("[update] Relaunching TUI...")
-        import os
-        os.execv(sys.executable, [sys.executable] + sys.argv)
+        self._append_log("[update] Relaunching TUI — exiting cleanly first...")
+        # ponytail: os.execv() while Textual is running corrupts the Windows terminal
+        # (alternate screen not restored). Instead set a flag and exit cleanly; __main__
+        # does the execv AFTER Textual has restored the terminal.
+        self._relaunch_on_exit = True
+        self.exit()
 
     @work(thread=True, group="check_updates")
     def _check_for_updates(self) -> None:
@@ -1494,4 +1498,8 @@ class GemiTUI(App):
 
 
 if __name__ == "__main__":
-    GemiTUI().run()
+    import os
+    app = GemiTUI()
+    app.run()
+    if getattr(app, "_relaunch_on_exit", False):
+        os.execv(sys.executable, [sys.executable] + sys.argv)

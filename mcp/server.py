@@ -26,18 +26,21 @@ async def _post(path: str, payload: dict | list | None = None) -> dict:
 # ── 1. Model / Tool Selection ─────────────────────────────────────────────────
 
 @mcp.tool()
-async def apply_settings(model: Optional[str] = None, tool: Optional[str] = None) -> str:
+async def apply_settings(model: Optional[str] = None, tool: str = "default") -> str:
     """Switch Gemini to a specific model and/or tool before generating.
 
     Call this before attaching files or submitting a prompt when you need a
-    particular model (e.g. "2.0 Flash", "2.5 Pro") or tool (e.g. "Image
-    generation", "Google Search").  Both parameters are optional — pass only
-    the one(s) you want to change.
+    particular model (e.g. "3.5 Flash", "3.1 Pro") or tool (e.g. "Create image",
+    "Google Search").  Run discover_capabilities() first to see the live list of
+    valid model / tool names.
+
+    The engine validates model/tool names against a live scan of the Gemini UI
+    and returns a clear error with available options if the name is stale.
 
     Args:
         model: Display name of the Gemini model to select (partial match ok).
         tool:  Display name of the Gemini tool to enable (partial match ok).
-               Pass "default" to leave the tool unchanged.
+               Defaults to "default" which means "leave tool unchanged".
 
     Returns:
         Confirmation string or error description.
@@ -47,10 +50,10 @@ async def apply_settings(model: Optional[str] = None, tool: Optional[str] = None
         parts = []
         if model:
             parts.append(f"model={model}")
-        if tool:
+        if tool and tool.lower() != "default":
             parts.append(f"tool={tool}")
         return f"Settings applied: {', '.join(parts)}" if parts else "No changes requested."
-    raise RuntimeError(data.get("message", "apply_settings failed"))
+    return f"Error: {data.get('message', 'apply_settings failed')}"
 
 
 # ── 2. File Attachment ────────────────────────────────────────────────────────

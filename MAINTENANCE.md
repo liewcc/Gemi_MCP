@@ -1,0 +1,60 @@
+# Maintenance Log — Gemi_MCP
+
+> Long-term maintenance diary for this repo. **Reverse-chronological** (newest on top).
+> One entry per maintenance change: what broke / why, what changed, how it was verified.
+> This is the durable record — `HANDOFF.md` is only the current in-flight task baton.
+>
+> **For AI assistants:** when you finish a maintenance change here, add an entry at the
+> top using the template at the bottom. Keep entries factual and short.
+
+---
+
+## 2026-06-20 — Scan-on-ready capability cache + apply_settings validation + 422 fix
+
+**Why:** Gemini's web UI changes its model/tool menus ("抽屉") over time. The interactive
+MCP path (`apply_settings`, `send_chat`) had no mechanism to know the *current* real menu
+state — it blindly clicked menu items by name. Stale names silently failed or surfaced as an
+opaque `HTTP 422 Unprocessable Content`. The validate-against-live-scan logic already existed,
+but only inside the automation loop (`browser_engine.py` ~L721-783), never on the interactive path.
+
+**Root cause of the 422 specifically:** the MCP wrapper sent `{"tool": null}` when no tool was
+passed, and the engine's `SettingsRequest.tool` was typed `str` → Pydantic rejected `null`.
+
+**Changes:**
+- `engine/core/providers/gemini.py`
+  - `GeminiProvider.__init__`: added `self._caps` (cached capabilities) — initialised `None`.
+  - `new_chat()` (end, ~L2339): **scan-on-ready** — runs `discover_capabilities()` once after
+    every new chat and caches `{models, main_tools, sub_tools, thinking_levels}` into `self._caps`.
+    Non-fatal if it fails.
+  - `apply_settings()` (~L454): normalises the `"default"` sentinel → no-op; lazily populates
+    `self._caps` if empty; validates incoming `model`/`tool`/`thinking_level` via partial
+    case-insensitive match against `self._caps`; on no match returns a structured error
+    **listing the live options** instead of blindly clicking.
+- `engine/core/engine_service.py`: `SettingsRequest.tool` default `None → "default"`.
+- `mcp/server.py`: `apply_settings` signature `tool: str = "default"`; returns the engine error
+  string instead of raising; docstring notes the live-scan validation.
+- `tui/app.py`: fixed the **Update & Relaunch** flow — `os.execv()` while Textual was running
+  corrupted the Windows terminal (alternate screen not restored). Now sets `_relaunch_on_exit`
+  and `self.exit()`s cleanly; `__main__` does the `execv` after the terminal is restored.
+
+**Verified (live, after restarting both the engine *and* the MCP server):**
+- `apply_settings(model="3.5 Flash")` with no `tool` → `Settings applied: model=3.5 Flash` (no 422).
+- Invalid model → `Error: model 'X' not found in live UI. Available: ['3.1 Flash-Lite', '3.5 Flash', '3.1 Pro']`.
+
+**Gotcha for future maintainers:** the **engine** (`engine_service.py`, port 18800) and the
+**MCP server** (`mcp/server.py`, the process the MCP client connects to) are *separate processes*.
+A code change to either requires restarting **that** process. Restarting only the engine left the
+old MCP wrapper sending `null`, so the 422 persisted until the MCP server was also reloaded.
+
+---
+
+## Entry template
+
+```
+## YYYY-MM-DD — <short title>
+
+**Why:** <what broke / motivation>
+**Changes:** <files + what changed>
+**Verified:** <how you confirmed it works>
+**Gotcha:** <anything non-obvious for next time, optional>
+```
