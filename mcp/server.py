@@ -226,6 +226,23 @@ async def send_chat(prompt: str, new_conversation: bool = True) -> str:
     raise RuntimeError(data.get("message", "Gemini chat failed with unknown error"))
 
 
+@mcp.tool()
+async def get_last_response() -> str:
+    """Read whatever Gemini has generated so far in the current chat.
+
+    Use this after send_chat times out — the browser tab may still be generating.
+    Returns the current response text and a 'done' flag.
+    Poll every few seconds until done=True.
+    """
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(f"{ENGINE_URL}/browser/last_response", timeout=10.0)
+        resp.raise_for_status()
+        data = resp.json()
+    done = data.get("done", False)
+    text = data.get("text", "")
+    return f"done={done}\n\n{text}"
+
+
 # ── 8. Reset / New Chat ───────────────────────────────────────────────────────
 
 @mcp.tool()
