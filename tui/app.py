@@ -960,28 +960,41 @@ class GemiTUI(App):
 
     @work(thread=True, group="check_updates")
     def _check_for_updates(self) -> None:
-        import subprocess, shutil
-        if not shutil.which("git"):
-            return
-        updates: list[str] = []
+        import urllib.request, json as _json
 
-        def _count_behind(cwd: str, branch: str = "origin/master") -> int:
+        TUI_URL    = "https://raw.githubusercontent.com/liewcc/Gemi_MCP/master/version.json"
+        ENGINE_URL = "https://raw.githubusercontent.com/liewcc/Gemi_Engine/master/version.json"
+
+        def _parse(v: str) -> tuple:
             try:
-                subprocess.run(["git", "fetch", "origin"], cwd=cwd,
-                               capture_output=True, timeout=20)
-                r = subprocess.run(
-                    ["git", "rev-list", f"HEAD..{branch}", "--count"],
-                    cwd=cwd, capture_output=True, text=True, timeout=10)
-                return int(r.stdout.strip() or "0")
+                return tuple(int(x) for x in v.strip().split("."))
             except Exception:
-                return 0
+                return (0, 0, 0)
 
-        n_tui    = _count_behind(str(ROOT))
-        n_engine = _count_behind(str(ROOT / "engine"))
+        def _fetch_remote_version(url: str) -> tuple:
+            try:
+                with urllib.request.urlopen(url, timeout=10) as r:
+                    data = _json.loads(r.read())
+                return _parse(data.get("version", "0.0.0"))
+            except Exception:
+                return (0, 0, 0)
+
+        def _read_local_version(path: str) -> tuple:
+            try:
+                with open(path, encoding="utf-8") as f:
+                    data = _json.load(f)
+                return _parse(data.get("version", "0.0.0"))
+            except Exception:
+                return (0, 0, 0)
+
+        local_tui    = _read_local_version(str(ROOT / "version.json"))
+        local_engine = _read_local_version(str(ROOT / "engine" / "version.json"))
+        remote_tui    = _fetch_remote_version(TUI_URL)
+        remote_engine = _fetch_remote_version(ENGINE_URL)
 
         parts: list[str] = []
-        if n_tui    > 0: parts.append(f"TUI +{n_tui}")
-        if n_engine > 0: parts.append(f"Engine +{n_engine}")
+        if remote_tui    > local_tui:    parts.append(f"TUI {'.'.join(map(str,local_tui))}→{'.'.join(map(str,remote_tui))}")
+        if remote_engine > local_engine: parts.append(f"Engine {'.'.join(map(str,local_engine))}→{'.'.join(map(str,remote_engine))}")
 
         if parts:
             self.call_from_thread(self._enable_update_button, parts)
