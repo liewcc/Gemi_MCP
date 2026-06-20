@@ -9,6 +9,27 @@
 
 ---
 
+## 2026-06-20 — Add `get_last_response` tool (Claude timeout resilience)
+
+**Why:** When Claude delegates a long query to Gemini via `send_chat`, the MCP call can
+time out before Gemini finishes thinking. The browser tab continues generating, but Claude
+has no way to retrieve the result without re-submitting the prompt.
+
+**Changes:**
+- `engine/core/providers/gemini.py`: added `GeminiProvider.get_last_response()` — reads the
+  last `model-response` DOM element's `innerText` and checks the "Stop response" button
+  visibility to determine a `done` flag.
+- `engine/core/browser_engine.py`: added delegation method `get_last_response()`.
+- `engine/core/engine_service.py`: added `GET /browser/last_response` route.
+- `mcp/server.py`: added `get_last_response` MCP tool (GET, 10s timeout, returns `done=` flag + text).
+
+**Verified:** Code review only — no live test run yet (requires engine + MCP server restart).
+
+**Gotcha:** Both the engine (`engine_service.py`, port 18800) and MCP server (`mcp/server.py`)
+must be restarted to pick up the new route/tool.
+
+---
+
 ## 2026-06-20 — Scan-on-ready capability cache + apply_settings validation + 422 fix
 
 **Why:** Gemini's web UI changes its model/tool menus ("抽屉") over time. The interactive

@@ -231,11 +231,10 @@ Full end-to-end test passed (2026-06-18):
 ## Next Steps
 1. Add DeepSeek support to the engine
 2. Build agy-mcp TUI (separate repo `D:\AI\AGY_MCP`)
-3. **Add `get_last_response` tool** — see proposal below
 
 ---
 
-## Proposed Feature — `get_last_response` (Claude timeout resilience)
+## Implemented Feature — `get_last_response` (Claude timeout resilience) ✓
 
 **Problem:** When Claude delegates a long query to gemi via `send_chat`, the MCP call
 times out before Gemini finishes thinking. Claude sees a timeout error and has no way to
@@ -342,23 +341,7 @@ screen, restore terminal raw-mode). The new process inherited a corrupted termin
   This is the validation behavior for "confirm saved settings still in menu".
 
 ## Last Updated
-2026-06-19 by Antigravity — Implemented Step 4 (mcp/server.py tool signature override with `new_conversation: bool = True`). Updated HANDOFF.md.
-
-## Previous Last Updated (archived)
-2026-06-19 by Antigravity — Implemented Edit 1 (harden new_chat in engine/core/providers/gemini.py) and Edit 2 (ChatRequest and /browser/chat handler in engine/core/engine_service.py) as requested.
-
-
-## Last Updated (Claude, 2026-06-19)
-2026-06-19 by Claude — Implemented Steps 1-4 (new_conversation param end-to-end). Smoke test FAILING: new_chat() does not isolate conversations. Hypothesis: URL does not change on New Chat click; URL-change detection times out and we proceed in old convo. Next: add URL logging to confirm, then fix wait logic (see "Current Status" above).
-
-## Last Updated (Claude, 2026-06-20)
-2026-06-20 by Claude — Added `get_last_response` feature proposal under Next Steps.
-Motivation: Claude times out waiting for gemi extended thinking, but the browser tab
-keeps generating. This tool lets Claude poll for the result without re-submitting.
-
-## Last Updated (Claude, 2026-06-19 — session 2)
-Implementation complete and smoke-tested. send_chat new_conversation param works end-to-end:
-- True (default): navigate to config.browser_url (/app), SPA state resets, fresh blank conversation
-- False: continue current conversation
-Gemini Memory (cross-session recall) is a user-level setting, not an engine concern.
-All 4 layers committed: gemini.py, browser_engine.py, engine_service.py, mcp/server.py.
+2026-06-20 by Antigravity — Implemented `get_last_response` feature end-to-end.
+Files changed: engine/core/providers/gemini.py, engine/core/browser_engine.py,
+engine/core/engine_service.py, mcp/server.py. Engine submodule committed first
+(972ec9b), then parent repo (179ef07). Not pushed.
