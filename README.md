@@ -90,6 +90,29 @@ On first use, the engine opens a browser window so you can log into your DeepSee
 After that, the session is saved automatically — you won't be asked to log in again unless
 DeepSeek signs you out.
 
+### 🔐 DeepSeek verification — what to do when the browser pops up
+
+DeepSeek has strict bot-detection, so it may ask you to verify every session. When this
+happens, Gemi_MCP opens a browser window automatically and pauses until you finish.
+
+**Step-by-step:**
+
+1. **A browser window opens.** This means DeepSeek needs manual verification (usually a
+   Cloudflare challenge or a login prompt).
+2. **Complete the verification** in the browser — solve the challenge or log in until you
+   reach the normal DeepSeek chat page (the text input box is visible).
+3. **Ask your AI assistant:** *"Test if the DeepSeek chat box is ready."*
+   The assistant will call `new_chat()` and confirm whether the session is live.
+4. **If the test passes:** close the browser window.
+5. **In the TUI control panel**, click **`Start Browser`** (or **`Restart`**) to relaunch
+   the browser in headless (background) mode.
+6. **Ask your AI assistant to test once more.** This time it should work without any
+   browser window appearing — confirming headless mode is active and the session is valid.
+7. **You're ready.** Proceed with your normal MCP usage.
+
+> 💡 You only need to do this when DeepSeek triggers a verification. If the session is
+> still valid from a previous run, Gemi_MCP will connect silently in the background.
+
 ### Daily use
 
 - Just double-click **`run.bat`**. The engine starts and logs in automatically.
