@@ -252,6 +252,11 @@ async def new_chat() -> str:
     Use this to reset conversation state, switch contexts, or isolate a new
     task from prior interactions. This clicks the "New chat" button in Gemini.
 
+    IMPORTANT — verify before conversing: after calling new_chat(), always
+    confirm which service is active by sending a self-identification prompt
+    (e.g. send_chat("What is your name?")) and checking the reply before
+    proceeding with real tasks. This guards against stale service state.
+
     Returns:
         Confirmation message.
     """
@@ -293,6 +298,10 @@ async def switch_service(service: str) -> str:
     Currently supported services:
       - "gemini"   — Google Gemini web UI (default)
       - "deepseek" — DeepSeek chat web UI
+
+    IMPORTANT — verify after switching: always follow switch_service() with
+    send_chat("What is your name?") to confirm the new service self-identifies
+    correctly before sending real prompts.
 
     Args:
         service: Name of the service to switch to (case-insensitive).
