@@ -2,15 +2,13 @@
 
 [English](README.md) | **简体中文**
 
-用浏览器自动化驱动 **Gemini 网页版** —— **无需 API Key，无需付费**。它会在真实浏览器里
-登录你平时用的 Google 账号，帮你生成文字和图片。
+用浏览器自动化驱动 **Gemini 和 DeepSeek 网页版** —— **无需 API Key，无需付费**。它会在真实浏览器里
+登录你平时用的账号，自动帮你处理对话、附件和设置。
 
 它由两部分组成：
 
-1. **引擎 + 控制面板** —— 一个小程序（文字界面的控制台，简称 "TUI"），负责打开浏览器、
-   登录 Gemini、运行自动化。
-2. **MCP 服务器** —— 可选的桥梁，让 **Claude Code**、**Cursor** 这类 AI 助手能自动把任务
-   交给 Gemini 处理。
+1. **引擎 + 控制面板** —— 一个小程序（文字界面的控制台，简称 "TUI"），负责打开浏览器、登录并运行自动化。
+2. **MCP 服务器** —— 可选的桥梁，让 **Claude Code**、**Cursor** 这类 AI 助手能自动把任务交给 Gemini 或 DeepSeek 处理。
 
 > 你可以只用第 1 部分。第 2 部分只有在你想让别的 AI 工具来控制它时才需要。
 
@@ -29,18 +27,15 @@
 
 1. 打开 <https://www.python.org/downloads/>
 2. 下载最新的 Windows 安装包并运行。
-3. **重要：** 在第一个安装界面，先勾选 **“Add python.exe to PATH”**，再点 *Install Now*。
-   如果忘了勾，下面的命令都会用不了。
-4. 装好后，**重新打开**一个终端，运行 `python --version`，应该会看到类似
-   `Python 3.12.x` 的字样。
+3. **重要：** 在第一个安装界面，先勾选 **“Add python.exe to PATH”**，再点 *Install Now*。如果忘了勾，下面的命令都会用不了。
+4. 装好后，**重新打开**一个终端，运行 `python --version`，应该会看到类似 `Python 3.12.x` 的字样。
 
 ---
 
 ## 🚀 安装（只需一次）
 
 1. **下载本项目。**
-   - 最简单的方法：在 GitHub 页面点绿色的 **`< > Code`** 按钮 → **Download ZIP**，
-     然后解压到一个简单的路径，比如 `D:\Gemi_MCP`。
+   - 最简单的方法：在 GitHub 页面点绿色的 **`< > Code`** 按钮 → **Download ZIP**，然后解压到一个简单的路径，比如 `D:\Gemi_MCP`。
    - 或者，如果你会用 Git：`git clone <仓库地址>`
 
 2. **打开**刚解压出来的文件夹。
@@ -50,11 +45,11 @@
    - Python 依赖库（Playwright、FastAPI 等）
    - 自动化要驱动的 Chromium 浏览器
    - 运行所需的文件夹
+   - **自动注册 MCP**：脚本会自动检测并把 `gemi-mcp` 注册到 **Claude Code** 以及任何已安装的 **Antigravity** 产品（CLI、桌面版、IDE）中 —— 无需手动修改配置文件。
 
    第一次会花几分钟。当你看到 **`Setup complete!`** 就表示装好了，可以关掉窗口。
 
-> 💡 如果 `setup.bat` 报了关于 `pip` 或 `playwright` 的错误，几乎都是因为 Python 没加到
-> PATH。请按上面的说明、勾选 **“Add to PATH”** 重新安装 Python，再运行一次 `setup.bat`。
+> 💡 如果 `setup.bat` 报了关于 `pip` 或 `playwright` 的错误，几乎都是因为 Python 没加到 PATH。请按上面的说明、勾选 **“Add to PATH”** 重新安装 Python，再运行一次 `setup.bat`。
 
 ---
 
@@ -63,14 +58,40 @@
 1. **双击 `run.bat`。**
    终端里会打开一个控制面板 —— 这就是你开关各项功能的地方。
 
-2. **登录 Gemini：**
-   - 用方向键 / 鼠标切换到 **`Accounts`**（账号）标签页。
-   - 按 **`+ Add account (registration mode)`**（添加账号 / 注册模式）。
-   - 会**弹出一个真实的浏览器窗口** —— 像平时一样在里面登录你的 Google 账号。
-   - 当 Gemini 在那个窗口里正常打开后，回到控制面板按 **`Ctrl+R`** 刷新。你的账号就会
-     出现在列表里了。
+2. **添加你的账号：**
+   - 在 **`Engine`** 标签页（第一个界面），点击 **`📋 Add profile`**。
+   - 会**弹出一个真实的浏览器窗口**，默认打开 Gemini 页面。
+   - 在该窗口中**登录你的 Google 账号**（就像平时一样）。等待 Gemini 完全加载完毕。
+   - 在**同一个浏览器窗口**中，导航到 <https://chat.deepseek.com> 并登录你的 DeepSeek 账号。如果出现验证步骤，请手动完成。
+   - 确认 Gemini 和 DeepSeek 都已登录后，**关闭该浏览器窗口**。
+   - 回到控制面板，按 **`Ctrl+R`** 重新加载。你的账号现在就会出现在列表中。
 
-3. 这样就好了。引擎下次会复用这个登录状态 —— 除非被 Google 退出登录，否则不用再登一次。
+3. 搞定。两个服务的登录状态都会保存到你的浏览器配置文件中 —— 除非服务把你登出，否则无需再次登录。
+
+### 🤖 在 Gemini 和 DeepSeek 之间切换
+
+引擎支持两种服务：**Gemini**（默认）和 **DeepSeek**。
+
+切换是通过 MCP 的 `switch_service` 工具完成的（你的 AI 助手会自动为你调用该工具）。
+首次使用时，引擎会打开一个浏览器窗口，以便你登录 DeepSeek 账号。
+之后，会话会自动保存 —— 除非 DeepSeek 把你登出，否则不会再次要求你登录。
+
+### 🔐 DeepSeek 验证 —— 浏览器弹出时该怎么做
+
+DeepSeek 具有严格的机器人检测机制，因此可能需要对每个会话进行验证。发生这种情况时，Gemi_MCP 会自动打开一个浏览器窗口并暂停，直到你完成验证。
+
+**详细步骤：**
+
+1. **浏览器窗口打开。** 这意味着 DeepSeek 需要手动验证（通常是 Cloudflare 挑战或登录提示）。
+2. **在浏览器中完成验证** —— 解决验证挑战或登录，直到进入正常的 DeepSeek 聊天页面（能看到文本输入框）。
+3. **告诉你的 AI 助手：** *"Test if the DeepSeek chat box is ready."* (测试 DeepSeek 输入框是否就绪)
+   助手会调用 `new_chat()` 并确认会话是否处于活动状态。
+4. **如果测试通过：** 关闭浏览器窗口。
+5. **在 TUI 控制面板中**，在 Engine 标签页点击 **`Start Browser`**，以无头（后台）模式重新启动浏览器。
+6. **让你的 AI 助手再次测试。** 这一次它应该可以在不弹出任何浏览器窗口的情况下正常工作 —— 确认无头模式已激活且会话有效。
+7. **准备就绪。** 接下来可以正常使用 MCP 了。
+
+> 💡 你只需要在 DeepSeek 触发验证时执行此操作。如果之前的会话依然有效，Gemi_MCP 将会在后台静默连接。
 
 ### 日常使用
 
@@ -82,14 +103,17 @@
 
 ---
 
-## 🔌 （可选）接入 Claude Code / Cursor
+## 🔌 （可选）接入 Claude Code / Cursor / Antigravity
 
-这一步能让别的 AI 助手通过 Gemi_MCP 把任务发给 Gemini。
+这一步能让别的 AI 助手通过 Gemi_MCP 把任务发送给 Gemini 或 DeepSeek。
 
-**前提：** 使用 MCP 服务器期间，`run.bat` 必须保持运行（这样引擎才在线）。
+### ⚡ 自动设置（推荐）
 
-把下面这段加到你的 MCP 客户端配置里（Claude Code 是 `claude_desktop_config.json` /
-`.mcp.json`；Cursor 也有类似的 MCP 设置文件）。把路径换成**你自己的**文件夹：
+`setup.bat` 会自动将 `gemi-mcp` 注册到 **Claude Code** 和任何已安装的 **Antigravity** 产品中。如果你在安装过程中批准了这些步骤，你现在就已经连接好了。
+
+### 🛠️ 手动配置（Cursor 及其他客户端）
+
+把下面这段加到你的 MCP 客户端配置文件中。将路径替换为**你自己**的项目文件夹：
 
 ```json
 {
@@ -102,10 +126,11 @@
 }
 ```
 
-> Windows 路径里要用**双反斜杠**（`\\`），如上所示。
+> Windows 路径里要使用**双反斜杠**（`\\`），如上所示。
 
-重启你的 AI 客户端。它现在就拥有了 `send_chat`、`set_prompt`、`submit_response`、
-`download_images` 等工具，可以替它跟 Gemini 对话。
+### 🚀 使用方法
+
+在你的 AI 客户端发起任何请求之前，请确保 `run.bat` 正在运行（显示 **`● online`**）。你的助手现在获得了诸如 `send_chat`、`switch_service`、`attach_files` 和 `get_last_response` 等工具。
 
 ---
 
@@ -115,9 +140,10 @@
 |------|----------|
 | 提示 `'python' is not recognized` | Python 没加到 PATH。重新安装 Python 并勾选 **“Add to PATH”**，开一个新终端再试。 |
 | `setup.bat` 在 `playwright install` 这一步失败 | 在项目文件夹里手动运行：`python -m playwright install chromium` |
-| 控制面板一直显示 `○ offline` | 启动后等 10～20 秒（浏览器正在登录）。如果一直离线，去 Engine 标签页按 **Restart** 按钮。 |
-| 每次都要重新登录 | 可能是 Google 把你退出了。重新执行 **Add account (registration mode)**，登录时记得保持登录 / 勾选“记住我”。 |
+| 控制面板一直显示 `○ offline` | 启动后等 10～20 秒（浏览器正在登录）。如果一直离线，在 Engine 标签页点击 **`Stop Browser`** 然后点击 **`Start Browser`**。 |
+| 每次都要重新登录 | 可能是 Google 把你退出了。重新执行 **Add account (registration mode)** 确保你保持登录状态/勾选了“记住我”。 |
 | MCP 客户端连不上 | 确保 `run.bat` 已打开并显示 **`● online`**，再启动你的 AI 客户端。 |
+| 使用 DeepSeek 时弹出有头（可见）浏览器窗口 | DeepSeek 需要验证或重新登录。请在弹出的浏览器窗口中完成操作，然后重试你的请求。 |
 | 想彻底重来 | 删掉 `data\` 文件夹和 `core\browser_user_data\` 文件夹，重新运行 `setup.bat` 并再次登录。 |
 
 ---
@@ -136,7 +162,6 @@
 
 ## ℹ️ 说明与限制
 
-- 本工具自动化的是 Gemini 的**免费网页版**，受 Gemini 正常的使用额度和服务条款约束。
-  请用你自己的账号、合理使用。
+- 本工具自动化的是 Gemini 的**免费网页版**，受 Gemini 正常的使用额度和服务条款约束。请用你自己的账号、合理使用。
 - 目前在 **Windows** 上构建和测试。
 - 这是一个非官方工具，**与 Google 无关**。
