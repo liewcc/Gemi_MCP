@@ -2,8 +2,8 @@
 
 **English** | [简体中文](README.zh-CN.md)
 
-Drive the **Gemini web UI** with browser automation — **no API key, no billing**. It logs
-into your normal Google account in a real browser and generates text and images for you.
+Drive **Gemini & DeepSeek web UIs** with browser automation — **no API key, no billing**. It logs
+into your normal accounts in a real browser and automatically processes chats, attachments, and settings for you.
 
 It comes in two parts:
 
@@ -50,6 +50,7 @@ You only need two things installed on **Windows**:
    - Python libraries (Playwright, FastAPI, etc.)
    - The Chromium browser that the automation drives
    - The folders it needs to run
+   - **Automatic MCP registration:** The script detects and registers `gemi-mcp` with **Claude Code** and any installed **Antigravity** products (CLI, Desktop, IDE) — no manual config editing needed.
 
    This takes a few minutes the first time. When you see **`Setup complete!`**, you're done.
    You can close the window.
@@ -75,6 +76,15 @@ You only need two things installed on **Windows**:
 3. That's it. The engine will reuse this login next time — you won't have to log in again
    unless Google signs you out.
 
+### 🤖 Switching between Gemini and DeepSeek
+
+The engine supports two services: **Gemini** (default) and **DeepSeek**.
+
+Switching is done via the MCP `switch_service` tool (your AI assistant calls this for you).
+On first use, the engine opens a browser window so you can log into your DeepSeek account.
+After that, the session is saved automatically — you won't be asked to log in again unless
+DeepSeek signs you out.
+
 ### Daily use
 
 - Just double-click **`run.bat`**. The engine starts and logs in automatically.
@@ -86,15 +96,18 @@ and switch between accounts.
 
 ---
 
-## 🔌 (Optional) Connect to Claude Code / Cursor
+## 🔌 (Optional) Connect to Claude Code / Cursor / Antigravity
 
-This lets another AI assistant send tasks to Gemini through Gemi_MCP.
+This lets another AI assistant send tasks to Gemini or DeepSeek through Gemi_MCP.
 
-**Requirement:** `run.bat` must be running (so the engine is online) while your AI client is
-using the MCP server.
+### ⚡ Automatic setup (recommended)
 
-Add this to your MCP client config (for Claude Code: `claude_desktop_config.json` /
-`.mcp.json`; Cursor has a similar MCP settings file). Replace the path with **your** folder:
+`setup.bat` automatically registers `gemi-mcp` with **Claude Code** and any installed
+**Antigravity** products. If you approved those steps during setup, you are already connected.
+
+### 🛠️ Manual config (Cursor & other clients)
+
+Add this to your MCP client's config file. Replace the path with **your** project folder:
 
 ```json
 {
@@ -109,8 +122,11 @@ Add this to your MCP client config (for Claude Code: `claude_desktop_config.json
 
 > Use **double backslashes** (`\\`) in the path on Windows, as shown above.
 
-Restart your AI client. It will now have tools like `send_chat`, `set_prompt`,
-`submit_response`, and `download_images` that talk to Gemini for it.
+### 🚀 Usage
+
+Make sure `run.bat` is running (showing **`● online`**) before your AI client makes any
+requests. Your assistant gains tools like `send_chat`, `switch_service`, `attach_files`,
+and `get_last_response`.
 
 ---
 
@@ -123,6 +139,7 @@ Restart your AI client. It will now have tools like `send_chat`, `set_prompt`,
 | Control panel says `○ offline` | Wait ~10–20s after starting; the browser is logging in. If it stays offline, press the **Restart** button on the Engine tab. |
 | It asks me to log in every time | Google may be signing you out. Re-run **Add account (registration mode)** and make sure you stay logged in / check “remember me”. |
 | MCP client can't reach it | Make sure `run.bat` is open and shows **`● online`** before starting your AI client. |
+| Headed browser window pops up during DeepSeek use | DeepSeek requires verification or a fresh login. Complete the action in the browser window, then retry your request. |
 | Need to start fresh | Delete the `data\` folder and `core\browser_user_data\` folder, then re-run `setup.bat` and log in again. |
 
 ---
