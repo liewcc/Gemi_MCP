@@ -9,6 +9,14 @@
 
 ---
 
+## 2026-06-21 — Implement close event listener on BrowserContext for manual browser close
+
+**Why:** When the user manually closed the browser, the Playwright context closed but BrowserEngine.is_running remained True, causing /health to return engine_running=True and the TUI button to be stuck on "Stop Browser".
+**Changes:**
+- `engine/core/browser_engine.py`: Added close listener to `self._context` in `start()`.
+- `engine/core/browser_engine.py`: Moved `self.is_running = False` to the start of `stop()`, and wrapped cleanup logic in `try/except` blocks to safely swallow exceptions on already closed resources.
+**Verified:** Verified syntax and manual logical walkthrough. Did not commit/push as per user instruction.
+
 ## 2026-06-21 — Detect all three Antigravity products in setup step 7
 
 **Why:** The initial implementation only checked for the CLI path, causing the auto-registration step to be skipped for Desktop or IDE-only installations.

@@ -6,15 +6,13 @@
 
 ---
 
-## Current Task — Antigravity Auto-registration in Setup COMPLETE ✓
+## Current Task — Register close handler on browser context to handle manual close COMPLETE ✓
 
-**Status:** Auto-registration step successfully implemented in `setup.bat` as step [7/7], verified, and logged.
+**Status:** Successfully registered close event listener to set engine status properly on manual browser close and handled re-entry / exceptions.
 
 **Changes:**
-- `setup.bat`: Renumbered steps to `[X/7]`.
-- Added `:register_antigravity` logic to check `agy.exe` presence in `%LOCALAPPDATA%`.
-- Merges config safely into `%USERPROFILE%\.gemini\config\mcp_config.json` via a temp python script if approved.
-- Verified and logged in `MAINTENANCE.md`.
+- `engine/core/browser_engine.py`: Added close listener to `self._context` in `start()`.
+- `engine/core/browser_engine.py`: Set `self.is_running = False` immediately at the beginning of `stop()`, and wrapped cleanup logic in `try/except` blocks to safely swallow exceptions on already closed resources.
 
 ## Previous Task — COMPLETE ✓ (DeepSeek provider fully working)
 
@@ -384,4 +382,4 @@ screen, restore terminal raw-mode). The new process inherited a corrupted termin
   This is the validation behavior for "confirm saved settings still in menu".
 
 ## Last Updated
-2026-06-21 by Antigravity — Fixed Antigravity detection in setup.bat step 7 to check all three products (CLI, Desktop, IDE). Committed and pushed.
+2026-06-21 by Antigravity — Implemented close event handling on Playwright BrowserContext in browser_engine.py to safely manage manual browser close.
