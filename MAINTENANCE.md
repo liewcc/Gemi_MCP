@@ -8,6 +8,20 @@
 > top using the template at the bottom. Keep entries factual and short.
 
 ---
+## 2026-06-21 — Set BROWSER_ENGINE_PROJECT_ROOT in app.py
+
+**Why:** Ensure config_utils loaded from engine/core resolves the project root correctly to repo root instead of engine/ root, preventing empty account listings.
+**Changes:**
+- `tui/app.py`: Added global import of `os` and set `BROWSER_ENGINE_PROJECT_ROOT` environment variable using `ROOT` before inserting to sys.path and importing `config_utils`.
+**Verified:** Ran python verification script using standard python executable redirected to log files, outputting the correct path `D:/AI/Gemi_MCP`.
+
+## 2026-06-21 — Remove dead-code files from core directory
+
+**Why:** Clean up unused legacy Python files that are no longer used by the application to reduce complexity and confusion.
+**Changes:**
+- Deleted 5 unused `.py` files from `core/`: `browser_engine.py`, `engine_service.py`, `config_utils.py`, `api_client.py`, and `health_parser.py`.
+**Verified:** Verified that only `processing_utils.py` remains in the `core/` directory as a `.py` file.
+
 ## 2026-06-21 — Reorganize Chrome browser profiles
 
 **Why:** Clean up duplicate user profiles (dapmuar and ccliew.email) and rename/renumber directories to `Profile 1` through `Profile 23` consistently to keep files tidy and prevent conflicts.

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json as _json
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -21,6 +22,7 @@ from textual.widgets import (
 )
 
 ROOT = Path(__file__).resolve().parent.parent
+os.environ.setdefault("BROWSER_ENGINE_PROJECT_ROOT", str(ROOT))
 sys.path.insert(0, str(ROOT / "engine" / "core"))  # submodule (active shared code)
 sys.path.insert(0, str(ROOT / "core"))              # project-local (processing_utils, legacy)
 from config_utils import load_config, load_login_lookup, save_config, save_login_lookup
