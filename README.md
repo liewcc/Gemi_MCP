@@ -67,8 +67,7 @@ You only need two things installed on **Windows**:
    A control panel opens in the terminal — this is where you turn things on and off.
 
 2. **Add your account:**
-   - Use the arrow keys / mouse to open the **`Accounts`** tab.
-   - Press **`+ Add account (registration mode)`**.
+   - In the **`Engine`** tab (the first screen), click **`📋 Add profile`**.
    - A **real browser window opens**, starting at the Gemini page.
    - **Log into your Google account** in that window (just like normal). Wait until Gemini is
      fully loaded.
@@ -104,7 +103,7 @@ happens, Gemi_MCP opens a browser window automatically and pauses until you fini
 3. **Ask your AI assistant:** *"Test if the DeepSeek chat box is ready."*
    The assistant will call `new_chat()` and confirm whether the session is live.
 4. **If the test passes:** close the browser window.
-5. **In the TUI control panel**, click **`Start Browser`** (or **`Restart`**) to relaunch
+5. **In the TUI control panel**, click **`Start Browser`** on the Engine tab to relaunch
    the browser in headless (background) mode.
 6. **Ask your AI assistant to test once more.** This time it should work without any
    browser window appearing — confirming headless mode is active and the session is valid.
@@ -164,7 +163,7 @@ and `get_last_response`.
 |---------|-----|
 | `'python' is not recognized` | Python isn't on PATH. Reinstall Python with **“Add to PATH”** ticked, open a new terminal, try again. |
 | `setup.bat` fails on `playwright install` | Run this manually in the project folder: `python -m playwright install chromium` |
-| Control panel says `○ offline` | Wait ~10–20s after starting; the browser is logging in. If it stays offline, press the **Restart** button on the Engine tab. |
+| Control panel says `○ offline` | Wait ~10–20s after starting; the browser is logging in. If it stays offline, click **`Stop Browser`** then **`Start Browser`** on the Engine tab. |
 | It asks me to log in every time | Google may be signing you out. Re-run **Add account (registration mode)** and make sure you stay logged in / check “remember me”. |
 | MCP client can't reach it | Make sure `run.bat` is open and shows **`● online`** before starting your AI client. |
 | Headed browser window pops up during DeepSeek use | DeepSeek requires verification or a fresh login. Complete the action in the browser window, then retry your request. |
