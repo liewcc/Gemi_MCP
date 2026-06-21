@@ -42,8 +42,8 @@ if %ERRORLEVEL% neq 0 (
 echo.
 echo [4/7] Creating required runtime directories...
 if not exist "data" mkdir "data"
-if not exist "core\browser_user_data" mkdir "core\browser_user_data"
-if not exist "core\browser_screen_capture" mkdir "core\browser_screen_capture"
+if not exist "runtime\browser_user_data" mkdir "runtime\browser_user_data"
+if not exist "runtime\browser_screen_capture" mkdir "runtime\browser_screen_capture"
 
 echo.
 echo [5/7] Creating desktop shortcut...

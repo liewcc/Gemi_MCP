@@ -8,6 +8,19 @@
 > top using the template at the bottom. Keep entries factual and short.
 
 ---
+## 2026-06-21 — Rename data directory core/ to runtime/
+
+**Why:** Eliminate visual confusion between Gemi_MCP's `core/` runtime data directory and `engine/core/` submodule code directory.
+**Changes:**
+- `engine/core/engine_service.py`, `engine/core/providers/gemini.py`, `engine/dom_debugger.py`: Added and wired `BROWSER_ENGINE_DATA_SUBDIR` environment variable support (defaulting to "core" for GemiPersonaPro_DT compatibility).
+- Renamed project's `core/` data directory to `runtime/`.
+- `tui/app.py`: Updated python path inserts and engine environment variables to pass `BROWSER_ENGINE_DATA_SUBDIR="runtime"`, and renamed data directories references to `runtime/`.
+- `setup.bat`: Created directories under `runtime/` instead of `core/`.
+- `reorganize_profiles.py`: Modified hardcoded path to `runtime/`.
+- `.gitignore`: Updated rules to ignore user data in `runtime/` instead of `core/`.
+- `CLAUDE.md`, `AGENTS.md`, `README.md`, `README.zh-CN.md`: Updated directories reference and Git Safety rules.
+**Verified:** Ran python compilation checks on `tui/app.py`, `engine/core/engine_service.py`, and `reorganize_profiles.py`. Verified that Git correctly ignores browser data under `runtime/`.
+
 ## 2026-06-21 — Set BROWSER_ENGINE_PROJECT_ROOT in app.py
 
 **Why:** Ensure config_utils loaded from engine/core resolves the project root correctly to repo root instead of engine/ root, preventing empty account listings.

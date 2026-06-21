@@ -24,7 +24,7 @@ from textual.widgets import (
 ROOT = Path(__file__).resolve().parent.parent
 os.environ.setdefault("BROWSER_ENGINE_PROJECT_ROOT", str(ROOT))
 sys.path.insert(0, str(ROOT / "engine" / "core"))  # submodule (active shared code)
-sys.path.insert(0, str(ROOT / "core"))              # project-local (processing_utils, legacy)
+sys.path.insert(0, str(ROOT / "runtime"))              # project-local (processing_utils, legacy)
 from config_utils import load_config, load_login_lookup, save_config, save_login_lookup
 
 ENGINE_URL = "http://127.0.0.1:18800"
@@ -721,9 +721,10 @@ class GemiTUI(App):
         CREATE_NO_WINDOW = 0x08000000
         import os as _os
         _env = _os.environ.copy()
-        _core_path = str(ROOT / "core")  # project-local: processing_utils lives here
+        _core_path = str(ROOT / "runtime")  # project-local: processing_utils lives here
         _env["PYTHONPATH"] = _core_path + (_os.pathsep + _env["PYTHONPATH"] if "PYTHONPATH" in _env else "")
         _env["BROWSER_ENGINE_DATA_DIR"] = _core_path
+        _env["BROWSER_ENGINE_DATA_SUBDIR"] = "runtime"
         _env["BROWSER_ENGINE_PROJECT_ROOT"] = str(ROOT)
         self._service_proc = subprocess.Popen(
             [sys.executable, "-u", str(ROOT / "engine" / "core" / "engine_service.py")],
@@ -1578,7 +1579,7 @@ class GemiTUI(App):
         save_login_lookup(accounts)
 
         profile_found = False
-        local_state_path = ROOT / "core" / "browser_user_data" / "Local State"
+        local_state_path = ROOT / "runtime" / "browser_user_data" / "Local State"
         try:
             with open(local_state_path, "r", encoding="utf-8") as f:
                 state = _json.load(f)
@@ -1590,7 +1591,7 @@ class GemiTUI(App):
                     email_part = user_name_val.lower().split("@")[0]
                     # matches the username being deleted
                     if email_part == username.lower().split("@")[0]:
-                        profile_path = ROOT / "core" / "browser_user_data" / profile_dir
+                        profile_path = ROOT / "runtime" / "browser_user_data" / profile_dir
                         shutil.rmtree(profile_path, ignore_errors=True)
                         profile_found = True
                         self._append_log(

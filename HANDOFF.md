@@ -6,7 +6,18 @@
 
 ---
 
-## Current Task — Chrome Profile Reorganization COMPLETE ✓
+## Current Task — Rename data directory core/ to runtime/ COMPLETE ✓
+
+**Status:** Renamed `core/` to `runtime/` to eliminate visual confusion with the `engine/core/` submodule code directory. Configured the engine to accept `BROWSER_ENGINE_DATA_SUBDIR` to retain compatibility with other projects like GemiPersonaPro_DT.
+
+**Changes:**
+- Defined `DATA_SUBDIR = os.getenv("BROWSER_ENGINE_DATA_SUBDIR", "core")` in `engine_service.py` and updated references.
+- Renamed the project folder `core/` to `runtime/`.
+- Updated `tui/app.py` to set `BROWSER_ENGINE_DATA_SUBDIR="runtime"` when launching the service subprocess, and updated import/clean paths.
+- Updated `setup.bat`, `reorganize_profiles.py`, `.gitignore` to point to `runtime/` instead of `core/`.
+- Updated `CLAUDE.md`, `AGENTS.md`, `README.md`, `README.zh-CN.md` to reference `runtime/` and update Git Safety rules.
+
+## Previous Task — Chrome Profile Reorganization COMPLETE ✓
 
 **Status:** Completed clean renumbering of Chrome profile directories and updated `Local State` JSON.
 
@@ -71,133 +82,6 @@ new_chat() → attach_files([...]) → send_chat(new_conversation=False)
 Do NOT use `new_conversation=True` with attachments — it calls `new_chat()` internally → clears files.
 
 **Committed:** engine submodule `a4b41b3`
-
----
-
-## Previous Task — send_chat STATE MANAGEMENT OVERHAUL (Plan C)
-
-**Problem:** `send_chat` has no mechanism to guarantee clean state before each call.
-It calls `prepare_chat_state()` (dismisses overlays, waits for idle) but **never starts a new
-conversation**. Every call accumulates context in the same Gemini session → context pollution,
-unpredictable drift, eventual token limit breach.
-
-**Decision:** Implement **Option C** — add `new_conversation: bool = True` parameter to
-`send_chat`. Default `True` forces a new chat before every call. Pass `False` to continue
-an existing multi-turn conversation.
-
-### Current Status (2026-06-19)
-
-Steps 1–4 code is **committed** but **smoke test FAILING** — `new_conversation=True` does NOT isolate conversations. Gemini still remembers tokens from previous `send_chat` calls.
-
-**Root cause hypothesis:** Clicking the "New Chat" button may NOT change the URL in all Gemini UI states. Our URL-change detection times out (8s), we proceed, but we're still in the old conversation. Need to add logging to confirm.
-
-**Next debugging steps:**
-1. Add a `self._log(f"URL before new_chat: {url_before}, after: {self._page.url}")` and check engine.log after a failed test to see what URL Gemini is actually on.
-2. If URL doesn't change: try `page.evaluate` to click the button and then `page.wait_for_navigation()` instead of polling.
-3. Alternative: use `navigate("https://gemini.google.com/app")` BUT first check if `/app` actually loads a fresh chat or the last conversation — open the browser and manually observe what URL you end up on after clicking New Chat vs navigating to /app.
-4. If Gemini always stays at `/app` for new chats (no URL change), switch to checking for absence of `model-response` elements after a configurable grace period (e.g. 1.5s after click).
-
-**Files to check:**
-- `engine/core/providers/gemini.py` — `new_chat()` around line 2222
-
-### Implementation Plan
-
-#### Step 1 — `gemini.py`: harden `new_chat()` with confirmed-ready wait
-
-File: `engine/core/providers/gemini.py`, function `new_chat` (~line 2160)
-
-After the click / navigation, **do not rely on a bare `sleep(1.0)`**. Instead add:
-
-```python
-# Wait until the prompt input area is visible and interactive
-try:
-    await self._page.wait_for_selector(
-        "div[aria-label='Enter a prompt for Gemini'], "
-        "div[aria-label='Enter a prompt here'], "
-        "div.ql-editor[contenteditable='true']",
-        state="visible",
-        timeout=8000,
-    )
-except Exception:
-    self._log("new_chat: prompt input did not appear within 8s after navigation.")
-```
-
-Also verify the URL changed to `/app` (or `/gem/`) after the click — if it hasn't changed
-within 3 s, fall back to `navigate("https://gemini.google.com/app")`.
-
-#### Step 2 — `gemini.py`: add `new_conversation` param to `send_chat`
-
-File: `engine/core/providers/gemini.py`, function `send_chat` (~line 1237)
-
-Change signature:
-```python
-async def send_chat(self, prompt: str, new_conversation: bool = True) -> dict:
-```
-
-At **Step A**, after `prepare_chat_state()`, add:
-```python
-if new_conversation:
-    await self.new_chat()   # now hardened — waits for prompt input ready
-```
-
-#### Step 3 — `engine_service.py`: expose param through REST
-
-File: `engine/core/engine_service.py`, `PromptRequest` model + `/browser/chat` endpoint (~line 1638)
-
-Extend `PromptRequest` (or create a `ChatRequest`):
-```python
-class ChatRequest(BaseModel):
-    text: str
-    new_conversation: bool = True
-```
-
-Update handler:
-```python
-@app.post("/browser/chat")
-async def send_chat(req: ChatRequest):
-    ...
-    result = await engine.send_chat(req.text, new_conversation=req.new_conversation)
-```
-
-#### Step 4 — `mcp/server.py`: expose param as MCP tool arg
-
-File: `mcp/server.py`, `send_chat` tool (~line 160)
-
-```python
-@mcp.tool()
-async def send_chat(prompt: str, new_conversation: bool = True) -> str:
-    """Send a text prompt to Gemini and return its text reply.
-
-    Args:
-        prompt:           The text message to send to Gemini.
-        new_conversation: If True (default), starts a fresh Gemini chat before
-                          sending — guarantees clean context. Set False to
-                          continue an existing multi-turn conversation.
-    """
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(
-            f"{ENGINE_URL}/browser/chat",
-            json={"text": prompt, "new_conversation": new_conversation},
-            timeout=240.0,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-    if data.get("status") == "success":
-        return data.get("text", "")
-    raise RuntimeError(data.get("message", "Gemini chat failed with unknown error"))
-```
-
-#### Step 5 — Smoke test
-
-After all edits:
-1. Call `send_chat("hello")` twice — confirm each lands on a clean page (no prior context).
-2. Call `send_chat("what did I say before?", new_conversation=False)` after a first turn — confirm Gemini remembers.
-3. Call `send_chat(...)` while a drawer/overlay is open — confirm `prepare_chat_state` still clears it.
-
-### Files to touch (in order)
-1. `engine/core/providers/gemini.py` — `new_chat()`, `send_chat()`
-2. `engine/core/engine_service.py` — `ChatRequest` model, `/browser/chat` handler
-3. `mcp/server.py` — `send_chat` tool signature + payload
 
 ---
 
@@ -294,12 +178,7 @@ Full end-to-end test passed (2026-06-18):
 
 ## In Progress
 - [ ] **Update & Relaunch — needs live verification** (fix applied 2026-06-19, not yet tested with a real update)
-  - The fix is in `tui/app.py`. After the next successful update run, mark this done and move to Done.
-
-## Next Steps
-1. Build agy-mcp TUI (separate repo `D:\AI\AGY_MCP`)
-
-## Done (this session — 2026-06-21)
+  - The fix is in `tui/app.py`. After the next successful update run, mark this done - [x] Conducted detailed compatibility and structural analysis for Task A (submodule integration) and Task B (processing_utils.py relocation). Provided recommendation report.
 - [x] Deleted 5 dead-code files from `core/` directory (`browser_engine.py`, `engine_service.py`, `config_utils.py`, `api_client.py`, `health_parser.py`) and verified that only `processing_utils.py` remains.
 - [x] Reorganized Chrome profile directories to cleanly number them 1 to 23, deleted duplicate profiles (dapmuar Profile 16, ccliew Profile 26), and updated Local State JSON.
 - [x] Prevented engine restart if the browser is already running by adding an early-return check to the `/engine/start` endpoint.
@@ -425,17 +304,14 @@ screen, restore terminal raw-mode). The new process inherited a corrupted termin
   (submodule, actually used at runtime). Always edit the ENGINE version.
 - `_update_discovered_selects()` must NOT call `recompose()` — that resets button states.
 - Textual `Select.set_options()` preserves current value if still valid, clears it otherwise.
-  This is the validation behavior for "confirm saved settings still in menu".
+- This is the validation behavior for "confirm saved settings still in menu".
 
 ## Next Steps (queued — 2026-06-21)
 
-### A. Engine submodule compatibility with GemiPersonaPro_DT
-The Gemi_Engine submodule (engine/) is used by Gemi_MCP but GemiPersonaPro_DT still has
-its own independent copy of engine/core/ (not a submodule). v1.1.2 changes are NOT in
-GemiPersonaPro_DT yet. Decision needed before next GemiPersonaPro_DT session:
-- Should GemiPersonaPro_DT adopt Gemi_Engine as a submodule?
-- Or backport fixes manually? (start_registration Profile N slot, break removal, is_running guard)
-- Check if GemiPersonaPro_DT engine/core/ has diverged with project-specific features.
+### A. ~~Engine submodule compatibility with GemiPersonaPro_DT~~ — NOT A TASK
+Both Gemi_MCP and GemiPersonaPro_DT already use Gemi_Engine as a shared submodule.
+DT has its own update notification UI — user clicks to bump. No manual work needed here.
+(HANDOFF description was stale/wrong; deleted 2026-06-21.)
 
 ### B. Eliminate core/ as a code directory — use engine/core/ exclusively
 **Goal:** Remove the last ambiguity: core/ should be data-only (browser_user_data, engine.log).
@@ -455,5 +331,5 @@ Constraint: Whatever solution must work for BOTH Gemi_MCP and GemiPersonaPro_DT
 these are data dirs and must NEVER be deleted regardless of code cleanup.
 
 ## Last Updated
-2026-06-21 by Claude Sonnet 4.6
+2026-06-21 by Google Antigravity (Gemini 3.5 Flash)
 

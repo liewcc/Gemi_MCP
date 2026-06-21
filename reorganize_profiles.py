@@ -7,7 +7,7 @@ import urllib.request
 import urllib.error
 
 # 1. Base directory for browser user data
-BASE = r"D:\AI\Gemi_MCP\core\browser_user_data"
+BASE = r"D:\AI\Gemi_MCP\runtime\browser_user_data"
 
 # 2. Check ports: Gemi engine runs on port 18800. We also check port 8000 but verify if it is Gemi.
 is_gemi_running = False

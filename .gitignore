@@ -1,10 +1,10 @@
 # Browser session data (contains account cookies — never commit)
-core/browser_session_sandbox/
-core/browser_user_data/
+runtime/browser_session_sandbox/
+runtime/browser_user_data/
 _bak_user_data/
 
 # Runtime screenshots
-core/browser_screen_capture/
+runtime/browser_screen_capture/
 
 # Config and user data (contains account info)
 data/config.json
@@ -14,7 +14,7 @@ data/*.log
 
 # Logs and runtime files
 *.log
-core/*.json
+runtime/*.json
 
 # Python
 __pycache__/

@@ -144,7 +144,7 @@ DeepSeek 具有严格的机器人检测机制，因此可能需要对每个会�
 | 每次都要重新登录 | 可能是 Google 把你退出了。重新执行 **Add account (registration mode)** 确保你保持登录状态/勾选了“记住我”。 |
 | MCP 客户端连不上 | 确保 `run.bat` 已打开并显示 **`● online`**，再启动你的 AI 客户端。 |
 | 使用 DeepSeek 时弹出有头（可见）浏览器窗口 | DeepSeek 需要验证或重新登录。请在弹出的浏览器窗口中完成操作，然后重试你的请求。 |
-| 想彻底重来 | 删掉 `data\` 文件夹和 `core\browser_user_data\` 文件夹，重新运行 `setup.bat` 并再次登录。 |
+| 想彻底重来 | 删掉 `data\` 文件夹和 `runtime\browser_user_data\` 文件夹，重新运行 `setup.bat` 并再次登录。 |
 
 ---
 
@@ -153,7 +153,7 @@ DeepSeek 具有严格的机器人检测机制，因此可能需要对每个会�
 下面这些都是自动生成的，**只存在你本机** —— 永远不会被上传：
 
 - `data\` —— 你的设置和账号列表
-- `core\browser_user_data\` —— 你已登录的浏览器配置（cookie）
+- `runtime\browser_user_data\` —— 你已登录的浏览器配置（cookie）
 - `gemini_outputs\` —— 默认保存生成图片的地方
 
 > ⚠️ 千万不要分享这些文件夹 —— 里面包含你的登录会话。

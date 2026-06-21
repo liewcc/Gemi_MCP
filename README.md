@@ -167,7 +167,7 @@ and `get_last_response`.
 | It asks me to log in every time | Google may be signing you out. Re-run **Add account (registration mode)** and make sure you stay logged in / check “remember me”. |
 | MCP client can't reach it | Make sure `run.bat` is open and shows **`● online`** before starting your AI client. |
 | Headed browser window pops up during DeepSeek use | DeepSeek requires verification or a fresh login. Complete the action in the browser window, then retry your request. |
-| Need to start fresh | Delete the `data\` folder and `core\browser_user_data\` folder, then re-run `setup.bat` and log in again. |
+| Need to start fresh | Delete the `data\` folder and `runtime\browser_user_data\` folder, then re-run `setup.bat` and log in again. |
 
 ---
 
@@ -176,7 +176,7 @@ and `get_last_response`.
 These are made automatically and **stay on your computer only** — they are never uploaded:
 
 - `data\` — your settings and account list
-- `core\browser_user_data\` — your logged-in browser profile (cookies)
+- `runtime\browser_user_data\` — your logged-in browser profile (cookies)
 - `gemini_outputs\` — where generated images are saved by default
 
 > ⚠️ Never share these folders — they contain your login session.
