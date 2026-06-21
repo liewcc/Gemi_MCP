@@ -66,15 +66,20 @@ You only need two things installed on **Windows**:
 1. **Double-click `run.bat`.**
    A control panel opens in the terminal — this is where you turn things on and off.
 
-2. **Log into Gemini:**
+2. **Add your account:**
    - Use the arrow keys / mouse to open the **`Accounts`** tab.
    - Press **`+ Add account (registration mode)`**.
-   - A **real browser window opens** — log into your Google account there, just like normal.
-   - Once Gemini is open and working in that window, go back to the control panel and press
-     **`Ctrl+R`** to reload. Your account now shows up in the list.
+   - A **real browser window opens**, starting at the Gemini page.
+   - **Log into your Google account** in that window (just like normal). Wait until Gemini is
+     fully loaded.
+   - In the **same browser window**, navigate to <https://chat.deepseek.com> and log in to your
+     DeepSeek account. If a verification step appears, complete it manually.
+   - Once both Gemini and DeepSeek show you as logged in, **close the browser window**.
+   - Go back to the control panel and press **`Ctrl+R`** to reload. Your account now shows up
+     in the list.
 
-3. That's it. The engine will reuse this login next time — you won't have to log in again
-   unless Google signs you out.
+3. That's it. Both logins are saved to your browser profile — you won't have to log in again
+   unless a service signs you out.
 
 ### 🤖 Switching between Gemini and DeepSeek
 
