@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import json as _json
+import shutil
 import sys
 from pathlib import Path
 from typing import Any
@@ -10,7 +12,8 @@ from typing import Any
 import httpx
 from textual import on, work
 from textual.app import App, ComposeResult
-from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.containers import Center, Horizontal, Vertical, VerticalScroll
+from textual.screen import ModalScreen
 from textual.reactive import reactive
 from textual.widgets import (
     Button, Header, Input, Label,
@@ -186,6 +189,67 @@ class SettingRow(Horizontal):
         yield Label(self._lbl, classes="row-label")
         for w in self._ctrls:
             yield w
+
+
+# ─── Modal dialog for Add Profile ─────────────────────────────────────────────
+
+class AddProfileModal(ModalScreen[str | None]):
+    """Modal dialog that asks for a Google account email to add as a new profile."""
+
+    CSS = """
+    AddProfileModal {
+        align: center middle;
+    }
+    #modal-dialog {
+        width: 60;
+        height: auto;
+        border: thick $accent;
+        background: $surface;
+        padding: 1 2;
+    }
+    #modal-title {
+        text-style: bold;
+        color: $accent;
+        margin: 0 0 1 0;
+    }
+    #modal-desc {
+        margin: 0 0 1 0;
+    }
+    #input-new-email {
+        width: 100%;
+        margin: 0 0 1 0;
+    }
+    #modal-buttons {
+        height: auto;
+        align: right middle;
+    }
+    """
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="modal-dialog"):
+            yield Label("Add Profile", id="modal-title")
+            yield Label(
+                "Enter the Google account email you will log in with:",
+                id="modal-desc",
+            )
+            yield Input(placeholder="user@gmail.com", id="input-new-email")
+            with Horizontal(id="modal-buttons"):
+                yield Button("OK", id="btn-modal-ok", variant="success")
+                yield Button("Cancel", id="btn-modal-cancel")
+
+    @on(Button.Pressed, "#btn-modal-ok")
+    def on_ok(self, _event: Button.Pressed) -> None:
+        email = self.query_one("#input-new-email", Input).value.strip()
+        self.dismiss(email if email else None)
+
+    @on(Button.Pressed, "#btn-modal-cancel")
+    def on_cancel(self, _event: Button.Pressed) -> None:
+        self.dismiss(None)
+
+    @on(Input.Submitted, "#input-new-email")
+    def on_input_submitted(self, _event: Input.Submitted) -> None:
+        email = self.query_one("#input-new-email", Input).value.strip()
+        self.dismiss(email if email else None)
 
 
 # ─── Tab content widgets ──────────────────────────────────────────────────────
@@ -392,8 +456,6 @@ class AccountsTab(VerticalScroll):
                         yield Select(RANGE_OPTIONS, value=range_val, id=f"sel-range-{i}", allow_blank=False)
                         yield Button("🗑 Delete Now", id=f"btn-delhist-{i}", name=username, classes="acct-btn acct-delhist")
 
-        with Horizontal(classes="action-row"):
-            yield Button("+ Add account (registration mode)", id="btn-add-account", variant="success")
 
         yield Label("QUOTA", classes="section-title")
         yield Rule()
@@ -841,9 +903,8 @@ class GemiTUI(App):
         elif bid == "btn-combine-redo":      self._action_redo()
         elif bid == "btn-combine-stop":      self._action_stop()
         elif bid == "btn-capture-dom":       self._action_capture_dom()
-        elif bid == "btn-add-account":       self._add_account()
         elif bid == "btn-check-status":      self._check_login_status()
-        elif bid == "btn-add-profile":       self._add_account()
+        elif bid == "btn-add-profile":       self._add_profile()
         elif bid == "btn-prev-profile":  self._switch_profile_dir(-1)
         elif bid == "btn-next-profile":  self._switch_profile_dir(1)
         elif bid == "btn-relogin":       self._relogin_current()
@@ -1308,14 +1369,92 @@ class GemiTUI(App):
             self._append_log(f"[TUI] Apply failed: {e}")
             self.notify(f"Apply failed: {e}", severity="error")
 
-    @work
-    async def _add_account(self) -> None:
+    @work(group="acct", exclusive=True)
+    async def _add_profile(self) -> None:
+        """Stop any running browser, show input dialog, and register the new email."""
+        # Step 1: stop running engine / registration browser if active
         try:
             async with httpx.AsyncClient() as c:
-                await c.post(f"{ENGINE_URL}/engine/start_registration", timeout=30)
-            self.notify("Registration browser opened — log in, then reload (ctrl+r)")
+                r = await c.get(f"{ENGINE_URL}/health", timeout=2.0)
+                if r.status_code == 200:
+                    data = r.json()
+                    if data.get("engine_running"):
+                        await c.post(f"{ENGINE_URL}/engine/stop", timeout=20)
+                    try:
+                        await c.post(f"{ENGINE_URL}/engine/stop_registration", timeout=10)
+                    except Exception:
+                        pass
+                    
+                    # Update status
+                    r2 = await c.get(f"{ENGINE_URL}/health", timeout=2.0)
+                    if r2.status_code == 200:
+                        self.engine_online = True
+                        self.browser_online = bool(r2.json().get("engine_running"))
+                    else:
+                        self.engine_online = False
+                        self.browser_online = False
+                else:
+                    self.engine_online = False
+                    self.browser_online = False
+            self._update_op_buttons()
+            self._update_subtitle()
+        except Exception:
+            pass  # engine offline — nothing to stop
+
+        # Step 2: Push a ModalScreen (Textual modal)
+        email = await self.push_screen(AddProfileModal(), wait_for_dismiss=True)
+        if not email or not email.strip():
+            return
+
+        email = email.strip()
+
+        # Step 3: check for duplicate
+        accounts = load_login_lookup()
+        normalised = email.lower()
+        if any(acc.get("username", "").strip().lower() == normalised for acc in accounts):
+            self.notify(f"Profile for {email} already exists!", severity="warning")
+            return
+
+        # Step 4: append new entry
+        accounts.append({
+            "username":        email.split("@")[0],
+            "active":          False,
+            "quota_full":      "",
+            "session_images":  "0",
+            "session_refused": "0",
+            "session_resets":  "0",
+        })
+        save_login_lookup(accounts)
+
+        # Step 5: open registration browser
+        try:
+            async with httpx.AsyncClient() as c:
+                r = await c.post(f"{ENGINE_URL}/engine/start_registration", timeout=30)
+            if r.status_code != 200:
+                self.notify(
+                    f"Registration failed ({r.status_code}): {r.json().get('detail', r.text)}",
+                    severity="error",
+                    timeout=10,
+                )
+                return
         except Exception as e:
-            self.notify(f"Failed: {e}", severity="error")
+            self.notify(f"Failed to open registration browser: {e}", severity="error", timeout=10)
+            return
+
+        # Step 6: recompose tabs to reflect the new account
+        try:
+            await self.query_one(EngineTab).recompose()
+        except Exception:
+            pass
+        try:
+            await self.query_one(AccountsTab).recompose()
+        except Exception:
+            pass
+
+        self.notify(
+            "Browser opened — log in, then close the window and press Ctrl+R",
+            timeout=8,
+        )
 
     # ─── Account actions (Engine tab panel) ─────────────────────────────────────
 
@@ -1432,10 +1571,47 @@ class GemiTUI(App):
 
     @work
     async def _delete_account(self, username: str) -> None:
+        # Remove from user_login_lookup.json
         accounts = [a for a in load_login_lookup() if a.get("username") != username]
         save_login_lookup(accounts)
-        await self.query_one(AccountsTab).recompose()
-        self.notify(f"Deleted {username}")
+
+        profile_found = False
+        local_state_path = ROOT / "core" / "browser_user_data" / "Local State"
+        try:
+            with open(local_state_path, "r", encoding="utf-8") as f:
+                state = _json.load(f)
+            info_cache = state.get("profile", {}).get("info_cache", {})
+            for profile_dir, p_info in info_cache.items():
+                user_name_val = p_info.get("user_name", "")
+                if isinstance(user_name_val, str) and user_name_val:
+                    # user_name (lowercased, part before @)
+                    email_part = user_name_val.lower().split("@")[0]
+                    # matches the username being deleted
+                    if email_part == username.lower().split("@")[0]:
+                        profile_path = ROOT / "core" / "browser_user_data" / profile_dir
+                        shutil.rmtree(profile_path, ignore_errors=True)
+                        profile_found = True
+                        self._append_log(
+                            f"[TUI] Deleted Chrome profile dir: {profile_dir} for {username}"
+                        )
+                        break
+        except FileNotFoundError:
+            pass  # No Local State file — nothing to clean
+        except Exception as e:
+            self._append_log(f"[TUI] Warning: could not clean Chrome profile for {username}: {e}")
+
+        try:
+            await self.query_one(EngineTab).recompose()
+        except Exception:
+            pass
+        try:
+            await self.query_one(AccountsTab).recompose()
+        except Exception:
+            pass
+        if profile_found:
+            self.notify(f"Deleted {username} (and browser profile)")
+        else:
+            self.notify(f"Deleted {username}")
 
     @work
     async def _delete_history_for(self, username: str) -> None:

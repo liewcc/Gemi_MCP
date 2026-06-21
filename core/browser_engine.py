@@ -336,26 +336,45 @@ class BrowserEngine:
 
     async def start_registration(self):
         """
-        Opens a headed browser directly against browser_user_data/ (no sandbox).
-        Allows the user to add new Google accounts / Chrome profiles.
-        Data is written directly to disk and will be visible to the engine on next start.
+        Opens a headed browser against a fresh Chrome profile in browser_user_data/.
+        Picks the next unused "Profile N" slot so existing sessions are not touched.
         """
-        # Close any previous registration browser first
         await self.stop_registration()
-        
+
         base_dir = self._data_dir
         user_data_dir = os.path.join(base_dir, "browser_user_data")
-        
+
+        # Find the next available profile slot from Local State.
+        next_profile = "Profile 1"
+        local_state_path = os.path.join(user_data_dir, "Local State")
+        if os.path.exists(local_state_path):
+            try:
+                import json as _json
+                with open(local_state_path, "r", encoding="utf-8") as f:
+                    state = _json.load(f)
+                keys = state.get("profile", {}).get("info_cache", {}).keys()
+                nums = [int(k.split()[-1]) for k in keys
+                        if k.startswith("Profile ") and k.split()[-1].isdigit()]
+                next_num = (max(nums) + 1) if nums else 1
+                next_profile = f"Profile {next_num}"
+            except Exception as e:
+                print(f"[REG] Warning: could not parse Local State, using Profile 1: {e}")
+
+        print(f"[REG] Opening registration browser on {next_profile}")
         self._reg_playwright = await async_playwright().start()
         self._reg_context = await self._reg_playwright.chromium.launch_persistent_context(
             user_data_dir=user_data_dir,
             headless=False,
             ignore_default_args=["--enable-automation", "--use-mock-keychain"],
-            args=["--start-minimized", "--disable-blink-features=AutomationControlled", "--no-sandbox"],
+            args=[
+                f"--profile-directory={next_profile}",
+                "--disable-blink-features=AutomationControlled",
+                "--no-sandbox",
+            ],
             ignore_https_errors=True,
             bypass_csp=True
         )
-        print("[REG] Registration browser started. user_data_dir:", user_data_dir)
+        print(f"[REG] Registration browser started. user_data_dir={user_data_dir}, profile={next_profile}")
 
     async def stop_registration(self):
         """Closes the registration browser if it is open."""

@@ -217,7 +217,7 @@ async def stop_engine():
 async def start_registration():
     """Opens a headed browser directly against browser_user_data/ for profile registration."""
     if engine.is_running:
-        raise HTTPException(status_code=400, detail="Stop the main browser before opening Registration Mode.")
+        await engine.stop()
     try:
         await engine.start_registration()
         return {"status": "success", "message": "Registration browser opened. Add your Google account, then close the browser window or call stop_registration."}

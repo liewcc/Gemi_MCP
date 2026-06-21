@@ -8,6 +8,56 @@
 > top using the template at the bottom. Keep entries factual and short.
 
 ---
+## 2026-06-21 — Reorganize Chrome browser profiles
+
+**Why:** Clean up duplicate user profiles (dapmuar and ccliew.email) and rename/renumber directories to `Profile 1` through `Profile 23` consistently to keep files tidy and prevent conflicts.
+**Changes:**
+- Cleaned up duplicate profile directories: deleted `Profile 16` (duplicate of `Profile 15`) and `Profile 26` (duplicate of `Profile 27`).
+- Renamed the remaining 23 directories to `Profile 1` through `Profile 23` in lowest-to-highest order.
+- Modified `core/browser_user_data/Local State` JSON structure under `profile.info_cache` by rebuilding it sequentially, removing keys `Profile 1` (ghost), `Profile 16`, and `Profile 26`, mapping the rest, and updating `profile.last_used` to `Profile 23`.
+- Modified `reorganize_profiles.py` port check from `8000` to `18800` to avoid conflict with running local services (e.g. ComfyUI) which listen on port `8000` by default.
+**Verified:** Ran python reorganization script successfully. Verified disk profile directories and Local State keys perfectly match `Profile 1` to `Profile 23` and `profile.last_used` is set to `Profile 23`.
+
+## 2026-06-21 — Prevent engine restart if browser is already running
+
+**Why:** Clicking "Start" in the TUI or calling `/engine/start` when the browser is already running stops the current browser and launches a new one unconditionally, causing disruption.
+**Changes:**
+- `engine/core/engine_service.py`: Added an early-return guard at the start of `/engine/start` (start_engine) that returns immediately with a message if `engine.is_running` is True.
+**Verified:** Logical walkthrough. Did not commit or push.
+
+## 2026-06-21 — Ensure active profile detection and switch logic verify folder existence
+
+**Why:** A user can have multiple profile entries with the same email in Chrome's local state. Breaking on the first match can point to a deleted folder, causing silent switch failures.
+**Changes:**
+- `engine/core/engine_service.py`: In both startup detection and `perform_switch_logic`, removed the `break` statement and added `os.path.exists` check via `get_abs_path` to ensure only existing directories are selected. Last valid match wins.
+**Verified:** Code review. Did not commit or push.
+
+## 2026-06-21 — Prevent playwright.stop() hang and normalize profile username
+
+**Why:**
+- When the registration browser is closed manually by the user, calling `_reg_playwright.stop()` can hang indefinitely and prevent the engine from starting.
+- Storing full email addresses as usernames in `user_login_lookup.json` causes inconsistency since other parts of the codebase only expect the local-part.
+
+**Changes:**
+- `engine/core/browser_engine.py`: Wrapped `await self._reg_playwright.stop()` with `asyncio.wait_for(..., timeout=5.0)` and caught `asyncio.TimeoutError` or other exceptions.
+- `tui/app.py`: Split email on `@` and used the local part as username in `_add_profile`.
+
+**Verified:** Syntax verified using `py_compile`. Did not commit or push.
+
+## 2026-06-21 — Redesign Add Profile flow with ModalScreen
+
+**Why:** The "Add profile" and "Add account" buttons both opened a registration browser but never wrote the new account to `user_login_lookup.json`, so the account never appeared in the UI.
+**Changes:**
+- `tui/app.py`: Removed `btn-add-account` button and its handler. Created `AddProfileModal` (Textual `ModalScreen`) that collects an email, then `_add_profile_worker()` stops any running browser/registration, checks for duplicate accounts, appends the new entry to `user_login_lookup.json`, opens the registration browser via `POST /engine/start_registration`, and recomposes both EngineTab and AccountsTab.
+- Added `import json as _json`, `import shutil`, `from textual.screen import ModalScreen`, `from textual.containers import Center`.
+**Verified:** Syntax verified via `py_compile`. Did not commit or push as per user instruction.
+
+## 2026-06-21 — Clean Chrome profile directory on account deletion in TUI
+
+**Why:** When an account was deleted via the TUI, its associated Chrome profile directory (cookies and cache) remained on disk, leading to orphaned browser directories.
+**Changes:**
+- `tui/app.py`: Updated `_delete_account()` to read `core/browser_user_data/Local State` JSON, look up `profile.info_cache` for a matching `user_name` (case-insensitive local-part before @), and `shutil.rmtree()` the matched profile directory. Handles `FileNotFoundError` gracefully if no Local State file exists.
+**Verified:** Syntax verified via `py_compile`. Did not commit or push as per user instruction.
 
 ## 2026-06-21 — Implement close event listener on BrowserContext for manual browser close
 
