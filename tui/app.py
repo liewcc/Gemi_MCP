@@ -258,10 +258,11 @@ class EngineTab(VerticalScroll):
             yield Label("Active profile:", classes="acct-status-label")
             yield Label(active, id="engine-active-profile", classes="acct-status-value")
             yield Button("🔍 Check status", id="btn-check-status", classes="acct-act-btn")
-        with Horizontal(classes="action-row"):
+        with Horizontal(classes="action-row btn-row"):
             yield Button("📋 Add profile", id="btn-add-profile", variant="success")
-            yield Button("⏮ Prev",        id="btn-prev-profile")
             yield Button("🔄 Re-login",    id="btn-relogin")
+        with Horizontal(classes="action-row btn-row"):
+            yield Button("⏮ Prev",        id="btn-prev-profile")
             yield Button("⏭ Next",        id="btn-next-profile")
         with Horizontal(classes="action-row"):
             if profile_opts:
@@ -328,7 +329,7 @@ class EngineTab(VerticalScroll):
         yield Label("COMBINE ACTION CONTROL", classes="section-title")
         yield Rule()
         with Horizontal(classes="action-row"):
-            yield Button("New Chat + Submit Prompt + Submit", id="btn-combine-submit", variant="primary")
+            yield Button("New Chat & Submit", id="btn-combine-submit", variant="primary")
             yield Button("Redo", id="btn-combine-redo")
             yield Button("Stop", id="btn-combine-stop", variant="error")
 
@@ -394,6 +395,7 @@ class AccountsTab(VerticalScroll):
                         yield Switch(acc.get("auto_delete", False), id=f"sw-autodel-{i}")
                         yield Label("Range", classes="acct-lbl-range")
                         yield Select(RANGE_OPTIONS, value=range_val, id=f"sel-range-{i}", allow_blank=False)
+                    with Horizontal(classes="account-card-row-bottom-2"):
                         yield Button("🗑 Delete Now", id=f"btn-delhist-{i}", name=username, classes="acct-btn acct-delhist")
 
 
@@ -411,7 +413,7 @@ class AccountsTab(VerticalScroll):
 class GemiTUI(App):
     CSS = """
     #main-panel    { height: 1fr; }
-    TabbedContent  { width: 3fr; height: 1fr; }
+    TabbedContent  { width: 60; height: 1fr; }
     TabPane        { height: 1fr; padding: 0; }
     VerticalScroll { padding: 1 2; }
 
@@ -421,11 +423,13 @@ class GemiTUI(App):
     SettingRow  { height: 3; align: left middle; }
     .row-label  { width: 1fr; content-align: left middle; }
     Switch      { margin: 0 0 0 1; }
-    Input       { width: 32; }
-    Select      { width: 32; }
+    Input       { width: 16; }
+    Select      { width: 16; }
 
+    .btn-row Button { width: 1fr; }
 
-    .action-row { height: auto; margin: 1 0; }
+    .action-row { width: 1fr; height: auto; margin: 1 0; }
+    #btn-capture-dom, #btn-update-relaunch { width: 1fr; }
     Button      { margin: 0 1 0 0; }
     #sel-tool, #sel-upload { width: 1fr; }
     #sel-model, #sel-thinking { width: 1fr; }
@@ -435,9 +439,11 @@ class GemiTUI(App):
     .acct-status-value { width: 1fr; content-align: left middle; color: $accent; text-style: bold; padding: 0 0 0 1; }
     .acct-act-btn      { min-width: 16; }
 
-    .account-card { height: 6; align: left middle; border-bottom: solid $surface; }
+    .account-card { height: 9; align: left middle; border-bottom: solid $surface; }
     .account-card-row-top { height: 3; align: left middle; }
     .account-card-row-bottom { height: 3; align: left middle; }
+    .account-card-row-bottom-2 { height: 3; }
+    .account-card-row-bottom-2 Button { width: 1fr; }
     .acct-email   { width: 1fr; content-align: left middle; }
     .acct-badge   { width: 14; content-align: left middle; }
     .badge-active { color: $success; }
@@ -452,7 +458,7 @@ class GemiTUI(App):
 
 
     #right-panel {
-        width: 2fr;
+        width: 1fr;
         height: 1fr;
         border-left: solid $surface;
     }
@@ -1579,6 +1585,10 @@ class GemiTUI(App):
                 pass
         self._update_subtitle()
         self.notify("Config reloaded")
+
+    @on(TabbedContent.TabActivated)
+    def on_tab_activated(self, event: TabbedContent.TabActivated) -> None:
+        self.query_one("#right-panel").display = (event.tab.id != "tab-accounts")
 
 
 if __name__ == "__main__":

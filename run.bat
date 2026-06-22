@@ -1,5 +1,14 @@
 @echo off
-title Gemi Engine Control - TUI
+if "%1"=="--wt-launched" goto :run
+
+where wt >nul 2>&1
+if %ERRORLEVEL% equ 0 (
+    wt --size 110,40 new-tab cmd /c "%~f0" --wt-launched
+    exit /b
+)
+
+:run
+title GEMI MCP
 cd /d "%~dp0"
 
 python tui/app.py
