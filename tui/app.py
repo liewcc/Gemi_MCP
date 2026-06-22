@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Gemi Engine Control — TUI"""
+"""Gemi MCP — TUI"""
 from __future__ import annotations
 
 import asyncio
@@ -481,7 +481,7 @@ class GemiTUI(App):
     }
     """
 
-    TITLE = "Gemi Engine Control TUI"
+    TITLE = "GEMI MCP"
     BINDINGS = [
         ("q",      "quit",           "Quit"),
         ("ctrl+r", "reload_config",  "Reload config"),
