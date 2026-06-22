@@ -111,7 +111,6 @@ def _assign_process_to_job(job, proc) -> None:
 _SWITCH_MAP: dict[str, str] = {
     "sw-headless":      "headless",
     "sw-auto_start":    "auto_start_browser",
-    "sw-show_console":  "show_engine_console",
     "sw-auto_continue": "auto_continue_loop",
     "sw-bypass_quota":  "bypass_quota_full",
 }
@@ -273,7 +272,6 @@ class EngineTab(VerticalScroll):
 
         yield Label("BROWSER", classes="section-title")
         yield Rule()
-        yield SettingRow(">_ Show console",        Switch(c.get("show_engine_console", False),  id="sw-show_console"))
         yield SettingRow("⧗  Heartbeat timeout",  Input(str(c.get("heartbeat_timeout", 3600)), id="in-heartbeat"))
         yield SettingRow("⊕  Browser URL",        Input(c.get("browser_url", ""),              id="in-browser_url"), classes="wide")
 
