@@ -21,7 +21,7 @@ If fso.FileExists(wtPath) Then
     runCmd = """" & wtPath & """ --size 110,40 new-tab cmd /c """ & batPath & """ --wt-launched"
     
     On Error Resume Next
-    shell.Run runCmd, 0, False
+    shell.Run runCmd, 1, False
     If Err.Number = 0 Then
         wtLaunched = True
     Else
