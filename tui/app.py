@@ -355,54 +355,50 @@ class EngineTab(VerticalScroll):
 
 
 
-class AccountsTab(VerticalScroll):
+class AccountsTab(Vertical):
     def compose(self) -> ComposeResult:
         c              = load_config()
         accounts       = load_login_lookup()
         active         = c.get("active_user") or ""
         quota_full_set = set(c.get("quota_full") or [])
 
-        yield Label("ACCOUNTS", classes="section-title")
-        yield Rule()
+        with Horizontal(classes="acct-header"):
+            yield Label("Account",  classes="acct-email acct-hdr")
+            yield Label("Auto Del", classes="acct-hdr-sw acct-hdr")
+            yield Label("Range",    classes="acct-hdr-sel acct-hdr")
+            yield Label("Actions",  classes="acct-hdr-acts acct-hdr")
 
-        if not accounts:
-            yield Label("No accounts found. Add one below.", classes="hint")
-        else:
-            for i, acc in enumerate(accounts):
-                username  = acc.get("username", "")
-                is_active = bool(acc.get("active", False))
-                is_quota  = bool(acc.get("quota_full", ""))
-                if is_active:
-                    badge, badge_cls = "● Active", "badge-active"
-                elif is_quota:
-                    badge, badge_cls = "⚠ Quota", "badge-quota"
-                else:
-                    badge, badge_cls = "○ Idle", "badge-idle"
+        with VerticalScroll():
+            if not accounts:
+                yield Label("No accounts found. Add one below.", classes="hint")
+            else:
+                for i, acc in enumerate(accounts):
+                    username  = acc.get("username", "")
+                    is_active = bool(acc.get("active", False))
+                    is_quota  = bool(acc.get("quota_full", ""))
 
-                range_val = acc.get("delete_range") or "Last hour"
-                if not any(v == range_val for _, v in RANGE_OPTIONS):
-                    range_val = "Last hour"
+                    range_val = acc.get("delete_range") or "Last hour"
+                    if not any(v == range_val for _, v in RANGE_OPTIONS):
+                        range_val = "Last hour"
 
-                with Vertical(classes="account-card"):
-                    with Horizontal(classes="account-card-row-top"):
-                        yield Label(username, classes="acct-email")
-                        yield Label(badge,    classes=f"acct-badge {badge_cls}")
-                        if not is_active:
-                            yield Button("⇄ Switch", id=f"btn-switch-{i}", name=username, classes="acct-btn")
-                        yield Button("✕ Del", id=f"btn-del-{i}", name=username, classes="acct-btn acct-del")
-                    with Horizontal(classes="account-card-row-bottom"):
-                        yield Label("Auto Del", classes="acct-lbl-autodel")
+                    display_name = username[:18] + "…" if len(username) > 19 else username
+                    email_cls = "acct-email acct-email-active" if is_active else "acct-email"
+
+                    with Horizontal(classes="account-card"):
+                        yield Label(display_name, classes=email_cls)
                         yield Switch(acc.get("auto_delete", False), id=f"sw-autodel-{i}")
-                        yield Label("Range", classes="acct-lbl-range")
                         yield Select(RANGE_OPTIONS, value=range_val, id=f"sel-range-{i}", allow_blank=False)
-                    with Horizontal(classes="account-card-row-bottom-2"):
-                        yield Button("🗑 Delete Now", id=f"btn-delhist-{i}", name=username, classes="acct-btn acct-delhist")
+                        if is_active:
+                            yield Static("", classes="acct-switch-ph")
+                        else:
+                            yield Button("⇄ Switch", id=f"btn-switch-{i}", name=username, classes="acct-btn")
+                        yield Button("✕ Del",    id=f"btn-del-{i}",     name=username, classes="acct-btn acct-del")
+                        yield Button("🗑 Del Now", id=f"btn-delhist-{i}", name=username, classes="acct-btn acct-delhist")
 
-
-        yield Label("QUOTA", classes="section-title")
-        yield Rule()
-        yield SettingRow("⧗  Cooldown hours",    Input(str(c.get("quota_cooldown_hours", 24)), id="in-cooldown"))
-        yield SettingRow("⊗  Bypass quota check", Switch(c.get("bypass_quota_full", False),    id="sw-bypass_quota"))
+            yield Label("QUOTA", classes="section-title")
+            yield Rule()
+            yield SettingRow("⧗  Cooldown hours",    Input(str(c.get("quota_cooldown_hours", 24)), id="in-cooldown"))
+            yield SettingRow("⊗  Bypass quota check", Switch(c.get("bypass_quota_full", False),    id="sw-bypass_quota"))
 
 
 
@@ -442,21 +438,21 @@ class GemiTUI(App):
     .acct-status-value { width: 1fr; content-align: left middle; color: $accent; text-style: bold; padding: 0 0 0 1; }
     .acct-act-btn      { min-width: 16; }
 
-    .account-card { height: 9; align: left middle; border-bottom: solid $surface; }
-    .account-card-row-top { height: 3; align: left middle; }
-    .account-card-row-bottom { height: 3; align: left middle; }
-    .account-card-row-bottom-2 { height: 3; }
-    .account-card-row-bottom-2 Button { width: 1fr; }
-    .acct-email   { width: 1fr; content-align: left middle; }
-    .acct-badge   { width: 14; content-align: left middle; }
-    .badge-active { color: $success; }
-    .badge-quota  { color: $warning; }
-    .badge-idle   { color: $text-muted; }
-    .acct-btn     { min-width: 8; margin: 0 0 0 1; }
-    .acct-lbl-autodel { width: 11; content-align: left middle; }
-    .acct-lbl-range   { width: 8; content-align: right middle; margin: 0 1 0 2; }
-    .account-card-row-bottom Select { width: 16; }
-    .acct-delhist { min-width: 14; margin: 0 0 0 1; }
+    AccountsTab { height: 1fr; }
+    AccountsTab > VerticalScroll { height: 1fr; padding: 0 2; }
+    .acct-header  { height: 3; align: left middle; background: $boost; padding: 0 4 0 2; }
+    .acct-hdr     { content-align: left middle; color: $text-muted; text-style: bold; }
+    .acct-hdr-sw  { width: 8;  margin: 0 0 0 1; }
+    .acct-hdr-sel { width: 14; margin: 0 0 0 1; }
+    .acct-hdr-acts  { width: 31; margin: 0 0 0 1; }
+    .acct-switch-ph { width: 9;  margin: 0 0 0 1; }
+    .account-card { height: 3; align: left middle; border-bottom: solid $surface; }
+    .acct-email        { width: 1fr; content-align: left middle; }
+    .acct-email-active { color: $success; }
+    .acct-btn     { min-width: 9; margin: 0 0 0 1; }
+    .account-card Switch { width: 8; margin: 0 0 0 1; }
+    .account-card Select { width: 14; margin: 0 0 0 1; }
+    .acct-delhist { min-width: 11; margin: 0 0 0 1; }
 
 
 
@@ -1591,7 +1587,9 @@ class GemiTUI(App):
 
     @on(TabbedContent.TabActivated)
     def on_tab_activated(self, event: TabbedContent.TabActivated) -> None:
-        self.query_one("#right-panel").display = (event.tab.id != "tab-accounts")
+        is_accounts = event.pane.id == "tab-accounts"
+        self.query_one("#right-panel").display = not is_accounts
+        self.query_one(TabbedContent).styles.width = "1fr" if is_accounts else 62
 
 
 if __name__ == "__main__":

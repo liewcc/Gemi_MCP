@@ -8,6 +8,13 @@
 > top using the template at the bottom. Keep entries factual and short.
 
 ---
+## 2026-06-22 — Correct Windows Terminal Launcher (run.vbs)
+
+**Why:** Windows Terminal launch fails on some Windows 11 systems due to the app execution alias `wt` not resolving inside VBScript, and global error swallowing hides failures.
+**Changes:**
+- `run.vbs`: Removed global `On Error Resume Next` to prevent swallowing setup errors. Resolved the absolute path to `wt.exe` via `%LOCALAPPDATA%\Microsoft\WindowsApps\wt.exe` and verified its existence before execution. Added robust quoting for launch commands to support directories with space characters and implemented a clear diagnostic dialog (`MsgBox`) if both the primary WT and fallback CMD launches fail.
+**Verified:** Manually checked WT path existence and read back verified VBScript execution paths.
+
 ## 2026-06-22 — Remove keyword-based refusal detection from send_chat
 
 **Why:** Prevent Gemini's polite apologies and standard identity introductions (containing "sorry" or "language model") from falsely triggering refusal logic in `send_chat`, which previously crashed MCP tool calls.

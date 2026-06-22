@@ -6,6 +6,17 @@
 
 ---
 
+## Current Task — Correct Windows Terminal Launcher (run.vbs) COMPLETE ✓
+
+**Status:** Diagnosed and corrected Windows Terminal launching logic inside `run.vbs` to ensure compatibility and robustness on Windows 11.
+
+**Changes:**
+- Refactored `run.vbs` to resolve the absolute path to `wt.exe` via `%LOCALAPPDATA%\Microsoft\WindowsApps\wt.exe` and checked for its existence with `FileSystemObject.FileExists` before executing.
+- Removed global `On Error Resume Next` to prevent swallowing of file initialization or variable errors.
+- Corrected double-quote escaping for the command-line string to safely pass `batPath` arguments to Windows Terminal and Command Prompt.
+- Added a fallback diagnostic window (`MsgBox`) to notify users of precise failures if both WT and normal Command Prompt launches fail.
+- Verified that `setup.bat` is configured correctly with `run.vbs` inside TargetPath (with WorkingDirectory intact).
+
 ## Current Task — Rename data directory core/ to runtime/ COMPLETE ✓
 
 **Status:** Renamed `core/` to `runtime/` to eliminate visual confusion with the `engine/core/` submodule code directory. Configured the engine to accept `BROWSER_ENGINE_DATA_SUBDIR` to retain compatibility with other projects like GemiPersonaPro_DT.
@@ -334,5 +345,5 @@ Constraint: Whatever solution must work for BOTH Gemi_MCP and GemiPersonaPro_DT
 these are data dirs and must NEVER be deleted regardless of code cleanup.
 
 ## Last Updated
-2026-06-22 by Google Antigravity (Gemini 3.5 Flash)
+2026-06-22 by Google Antigravity (corrected run.vbs)
 
