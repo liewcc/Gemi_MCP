@@ -26,32 +26,43 @@ async def _post(path: str, payload: dict | list | None = None) -> dict:
 # ── 1. Model / Tool Selection ─────────────────────────────────────────────────
 
 @mcp.tool()
-async def apply_settings(model: Optional[str] = None, tool: str = "default") -> str:
-    """Switch Gemini to a specific model and/or tool before generating.
+async def apply_settings(
+    model: Optional[str] = None,
+    tool: str = "default",
+    thinking_level: Optional[str] = None,
+) -> str:
+    """Switch Gemini to a specific model, tool, and/or thinking level before generating.
 
     Call this before attaching files or submitting a prompt when you need a
-    particular model (e.g. "3.5 Flash", "3.1 Pro") or tool (e.g. "Create image",
-    "Google Search").  Run discover_capabilities() first to see the live list of
-    valid model / tool names.
+    particular model (e.g. "3.5 Flash", "3.1 Pro"), tool (e.g. "Create image",
+    "Google Search"), or thinking level (e.g. "Low", "Medium", "High", "Extended").
+    Run discover_capabilities() first to see the live list of valid names.
 
-    The engine validates model/tool names against a live scan of the Gemini UI
-    and returns a clear error with available options if the name is stale.
+    The engine validates selections against a live scan of the Gemini UI
+    and returns a clear error with available options if any selection is invalid or stale.
 
     Args:
-        model: Display name of the Gemini model to select (partial match ok).
-        tool:  Display name of the Gemini tool to enable (partial match ok).
-               Defaults to "default" which means "leave tool unchanged".
+        model:          Display name of the Gemini model to select (partial match ok).
+        tool:           Display name of the Gemini tool to enable (partial match ok).
+                        Defaults to "default" which means "leave tool unchanged".
+        thinking_level: Display name of the thinking level to select (e.g. "Low", "Medium", "High", "Extended", partial match ok).
 
     Returns:
         Confirmation string or error description.
     """
-    data = await _post("/browser/apply_settings", {"model": model, "tool": tool})
+    data = await _post("/browser/apply_settings", {
+        "model": model,
+        "tool": tool,
+        "thinking_level": thinking_level,
+    })
     if data.get("status") == "success":
         parts = []
         if model:
             parts.append(f"model={model}")
         if tool and tool.lower() != "default":
             parts.append(f"tool={tool}")
+        if thinking_level:
+            parts.append(f"thinking_level={thinking_level}")
         return f"Settings applied: {', '.join(parts)}" if parts else "No changes requested."
     return f"Error: {data.get('message', 'apply_settings failed')}"
 
