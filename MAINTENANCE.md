@@ -8,6 +8,13 @@
 > top using the template at the bottom. Keep entries factual and short.
 
 ---
+## 2026-06-22 — Remove keyword-based refusal detection from send_chat
+
+**Why:** Prevent Gemini's polite apologies and standard identity introductions (containing "sorry" or "language model") from falsely triggering refusal logic in `send_chat`, which previously crashed MCP tool calls.
+**Changes:**
+- `engine/core/providers/gemini.py`: Removed refusal keyword load/check logic inside `GeminiProvider.send_chat()`, and deleted the Python-side `status == "refused"` result branch. Left `submit_response` completely untouched.
+**Verified:** Syntax verified using `py_compile`.
+
 ## 2026-06-21 — Rename data directory core/ to runtime/
 
 **Why:** Eliminate visual confusion between Gemi_MCP's `core/` runtime data directory and `engine/core/` submodule code directory.

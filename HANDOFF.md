@@ -306,6 +306,9 @@ screen, restore terminal raw-mode). The new process inherited a corrupted termin
 - Textual `Select.set_options()` preserves current value if still valid, clears it otherwise.
 - This is the validation behavior for "confirm saved settings still in menu".
 
+## Done (recent — 2026-06-22)
+- [x] Removed keyword-based refusal detection from `GeminiProvider.send_chat()` to fix false positive refusal crashes on MCP tool calls. Verified syntax compilation and that `submit_response()` is untouched.
+
 ## Next Steps (queued — 2026-06-21)
 
 ### A. ~~Engine submodule compatibility with GemiPersonaPro_DT~~ — NOT A TASK
@@ -331,5 +334,5 @@ Constraint: Whatever solution must work for BOTH Gemi_MCP and GemiPersonaPro_DT
 these are data dirs and must NEVER be deleted regardless of code cleanup.
 
 ## Last Updated
-2026-06-21 by Google Antigravity (Gemini 3.5 Flash)
+2026-06-22 by Google Antigravity (Gemini 3.5 Flash)
 

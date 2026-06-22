@@ -112,44 +112,20 @@ _SWITCH_MAP: dict[str, str] = {
     "sw-headless":      "headless",
     "sw-auto_start":    "auto_start_browser",
     "sw-show_console":  "show_engine_console",
-    "sw-auto_looping":  "automation.auto_looping",
     "sw-auto_continue": "auto_continue_loop",
-    "sw-remove_wm":     "automation.remove_watermark",
-    "sw-use_gpu":       "automation.use_gpu",
-    "sw-clear_pending": "automation.continue_clear_pending",
-    "sw-track_filenum": "track_last_file_num",
-    "sw-matrix_on":     "prompt_matrix.enabled",
     "sw-bypass_quota":  "bypass_quota_full",
 }
 
 _INPUT_MAP: dict[str, tuple[str, type]] = {
     "in-heartbeat":   ("heartbeat_timeout", int),
     "in-browser_url": ("browser_url", str),
-    "in-goal":        ("automation.goal", int),
-    "in-save_dir":    ("save_dir", str),
-    "in-prefix":      ("name_prefix", str),
-    "in-padding":     ("name_padding", int),
-    "in-start":       ("name_start", int),
     "in-cooldown":    ("quota_cooldown_hours", int),
 }
 
 _SELECT_MAP: dict[str, str] = {
-    "sel-mode":   "automation.mode",
-    "sel-aspect": "fixed_aspect_ratio",
 }
 
-ASPECT_OPTIONS: list[tuple[str, str]] = [
-    ("None",             "None"),
-    ("16:9 (Landscape)", "16:9 (Landscape)"),
-    ("9:16 (Portrait)",  "9:16 (Portrait)"),
-    ("1:1 (Square)",     "1:1 (Square)"),
-    ("4:3 (Landscape)",  "4:3 (Landscape)"),
-    ("3:4 (Portrait)",   "3:4 (Portrait)"),
-    ("21:9 (Ultrawide)", "21:9 (Ultrawide)"),
-    ("3:2 (Landscape)",  "3:2 (Landscape)"),
-    ("2:3 (Portrait)",   "2:3 (Portrait)"),
-]
-MODE_OPTIONS: list[tuple[str, str]] = [("rounds", "rounds"), ("images", "images")]
+
 RANGE_OPTIONS: list[tuple[str, str]] = [
     ("Last hour", "Last hour"),
     ("Last day",  "Last day"),
@@ -377,43 +353,7 @@ class EngineTab(VerticalScroll):
             sub_select.set_options([("(select More... first)", "")])
 
 
-class AutomationTab(VerticalScroll):
-    def compose(self) -> ComposeResult:
-        c    = load_config()
-        auto = c.get("automation", {})
 
-        yield Label("LOOP", classes="section-title")
-        yield Rule()
-        yield SettingRow("↺  Auto-looping",        Switch(auto.get("auto_looping", False),          id="sw-auto_looping"))
-        cur_mode = auto.get("mode", "rounds")
-        mode_val = cur_mode if any(v == cur_mode for _, v in MODE_OPTIONS) else Select.BLANK
-        yield SettingRow("⊙  Mode",                Select(MODE_OPTIONS, value=mode_val,             id="sel-mode"))
-        yield SettingRow("▣  Goal (rounds)",        Input(str(auto.get("goal", 1)),                 id="in-goal"))
-
-        yield Label("IMAGE PROCESSING", classes="section-title")
-        yield Rule()
-        yield SettingRow("◫  Remove watermark",    Switch(auto.get("remove_watermark", True),       id="sw-remove_wm"))
-        yield SettingRow("▪  Use GPU",             Switch(auto.get("use_gpu", True),                id="sw-use_gpu"))
-        yield SettingRow("⊗  Clear pending on cont.", Switch(auto.get("continue_clear_pending", True), id="sw-clear_pending"))
-
-
-class OutputTab(VerticalScroll):
-    def compose(self) -> ComposeResult:
-        c = load_config()
-        raw_ratio = c.get("fixed_aspect_ratio", "None")
-        cur_ratio = raw_ratio if any(v == raw_ratio for _, v in ASPECT_OPTIONS) else "None"
-
-        yield Label("SAVE LOCATION", classes="section-title")
-        yield Rule()
-        yield SettingRow("📁  Save directory",  Input(c.get("save_dir", ""),          id="in-save_dir"), classes="wide")
-        yield SettingRow("⊞  Filename prefix", Input(c.get("name_prefix", ""),        id="in-prefix"))
-        yield SettingRow("#  Padding digits",  Input(str(c.get("name_padding", 4)),   id="in-padding"))
-        yield SettingRow("1  Start number",    Input(str(c.get("name_start", 1)),     id="in-start"))
-        yield SettingRow("⧗  Track last num", Switch(c.get("track_last_file_num", False), id="sw-track_filenum"))
-
-        yield Label("IMAGE", classes="section-title")
-        yield Rule()
-        yield SettingRow("⊡  Fixed aspect ratio", Select(ASPECT_OPTIONS, value=cur_ratio, id="sel-aspect"))
 
 
 class AccountsTab(VerticalScroll):
@@ -465,34 +405,7 @@ class AccountsTab(VerticalScroll):
         yield SettingRow("⊗  Bypass quota check", Switch(c.get("bypass_quota_full", False),    id="sw-bypass_quota"))
 
 
-class MatrixTab(VerticalScroll):
-    def compose(self) -> ComposeResult:
-        c      = load_config()
-        matrix = c.get("prompt_matrix", {})
-        items: list[dict] = matrix.get("items", [])
 
-        yield Label("PROMPT MATRIX", classes="section-title")
-        yield Rule()
-        yield SettingRow("◎  Enabled", Switch(matrix.get("enabled", False), id="sw-matrix_on"))
-
-        if items:
-            yield Label("")
-            with Horizontal(classes="matrix-header"):
-                yield Label("Ratio",    classes="mh-ratio")
-                yield Label("Target",  classes="mh-num")
-                yield Label("Done",    classes="mh-num")
-                yield Label("%",       classes="mh-num")
-            yield Rule()
-            for i, item in enumerate(items):
-                ratio   = item.get("ratio", "")
-                target  = item.get("target", 0)
-                current = item.get("current", 0)
-                pct     = f"{int(current / target * 100)}%" if target > 0 else "—"
-                with Horizontal(classes="matrix-row"):
-                    yield Label(ratio,         classes="mr-ratio")
-                    yield Input(str(target),   classes="mr-num", id=f"in-matrix-{i}-target")
-                    yield Label(str(current),  classes="mr-num")
-                    yield Label(pct,           classes="mr-num")
 
 
 # ─── Main App ─────────────────────────────────────────────────────────────────
@@ -512,7 +425,7 @@ class GemiTUI(App):
     Switch      { margin: 0 0 0 1; }
     Input       { width: 32; }
     Select      { width: 32; }
-    .wide Input { width: 50; }
+
 
     .action-row { height: auto; margin: 1 0; }
     Button      { margin: 0 1 0 0; }
@@ -538,10 +451,7 @@ class GemiTUI(App):
     .account-card-row-bottom Select { width: 16; }
     .acct-delhist { min-width: 14; margin: 0 0 0 1; }
 
-    .matrix-header { height: 2; color: $text-muted; }
-    .matrix-row    { height: 3; align: left middle; }
-    .mh-ratio, .mr-ratio { width: 1fr; content-align: left middle; }
-    .mh-num,  .mr-num    { width: 10; content-align: center middle; }
+
 
     #right-panel {
         width: 2fr;
@@ -612,14 +522,10 @@ class GemiTUI(App):
             with TabbedContent():
                 with TabPane("Engine",     id="tab-engine"):
                     yield EngineTab()
-                with TabPane("Automation", id="tab-automation"):
-                    yield AutomationTab()
-                with TabPane("Output",     id="tab-output"):
-                    yield OutputTab()
+
                 with TabPane("Accounts",   id="tab-accounts"):
                     yield AccountsTab()
-                with TabPane("Matrix",     id="tab-matrix"):
-                    yield MatrixTab()
+
             with Vertical(id="right-panel"):
                 yield Static("SERVICE LOG", id="log-header")
                 yield TextArea("", id="service-log", read_only=True, language=None)
@@ -855,19 +761,7 @@ class GemiTUI(App):
                 self._save(dot_path, typ(event.value))
             except (ValueError, TypeError):
                 self.notify(f"Invalid value for {wid}", severity="error")
-        elif wid.startswith("in-matrix-") and wid.endswith("-target"):
-            idx_str = wid[len("in-matrix-"):-len("-target")]
-            try:
-                idx = int(idx_str)
-                cfg = load_config()
-                items = cfg.get("prompt_matrix", {}).get("items", [])
-                if 0 <= idx < len(items):
-                    items[idx]["target"] = int(event.value)
-                    cfg["prompt_matrix"]["items"] = items
-                    save_config({"prompt_matrix": cfg["prompt_matrix"]})
-                    self.notify(f"Matrix target [{idx}] = {event.value}", timeout=2)
-            except (ValueError, IndexError):
-                self.notify("Invalid matrix target value", severity="error")
+
 
     @on(Select.Changed)
     def on_select_changed(self, event: Select.Changed) -> None:
@@ -1680,7 +1574,7 @@ class GemiTUI(App):
         self._append_log("[TUI] _shutdown_service: done")
 
     async def action_reload_config(self) -> None:
-        for tab_cls in (EngineTab, AutomationTab, OutputTab, AccountsTab, MatrixTab):
+        for tab_cls in (EngineTab, AccountsTab):
             try:
                 await self.query_one(tab_cls).recompose()
             except Exception:
