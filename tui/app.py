@@ -413,7 +413,7 @@ class AccountsTab(VerticalScroll):
 class GemiTUI(App):
     CSS = """
     #main-panel    { height: 1fr; }
-    TabbedContent  { width: 60; height: 1fr; }
+    TabbedContent  { width: 62; height: 1fr; }
     TabPane        { height: 1fr; padding: 0; }
     VerticalScroll { padding: 1 2; }
 
@@ -421,15 +421,18 @@ class GemiTUI(App):
     .hint          { color: $text-muted; padding: 0 0 0 2; }
 
     SettingRow  { height: 3; align: left middle; }
-    .row-label  { width: 1fr; content-align: left middle; }
+    .row-label  { width: 20; content-align: left middle; }
     Switch      { margin: 0 0 0 1; }
-    Input       { width: 16; }
+    Input       { width: 1fr; }
     Select      { width: 16; }
 
     .btn-row Button { width: 1fr; }
 
     .action-row { width: 1fr; height: auto; margin: 1 0; }
+    .action-row Button:last-of-type { width: 1fr; }
     #btn-capture-dom, #btn-update-relaunch { width: 1fr; }
+    #btn-toggle-engine, #btn-toggle-browser { width: 1fr; }
+    #sel-target-profile { width: 1fr; }
     Button      { margin: 0 1 0 0; }
     #sel-tool, #sel-upload { width: 1fr; }
     #sel-model, #sel-thinking { width: 1fr; }

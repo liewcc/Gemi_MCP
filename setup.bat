@@ -47,7 +47,7 @@ if not exist "runtime\browser_screen_capture" mkdir "runtime\browser_screen_capt
 
 echo.
 echo [5/7] Creating desktop shortcut...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ws = New-Object -ComObject WScript.Shell; $lnk = $ws.CreateShortcut([Environment]::GetFolderPath('Desktop') + '\Gemi MCP.lnk'); $lnk.TargetPath = '%~dp0run.bat'; $lnk.WorkingDirectory = '%~dp0'; $lnk.IconLocation = '%~dp0img\logo.ico'; $lnk.Save()"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ws = New-Object -ComObject WScript.Shell; $lnk = $ws.CreateShortcut([Environment]::GetFolderPath('Desktop') + '\Gemi MCP.lnk'); $lnk.TargetPath = '%~dp0run.vbs'; $lnk.WorkingDirectory = '%~dp0'; $lnk.IconLocation = '%~dp0img\logo.ico'; $lnk.Save()"
 if %ERRORLEVEL% neq 0 (
     echo   WARNING: Could not create desktop shortcut.
 ) else (
