@@ -46,6 +46,9 @@ async def apply_settings(
         tool:           Display name of the Gemini tool to enable (partial match ok).
                         Defaults to "default" which means "leave tool unchanged".
         thinking_level: Display name of the thinking level to select (e.g. "Low", "Medium", "High", "Extended", partial match ok).
+                        This selects the active model's reasoning/thinking depth (e.g. Standard or Extended). Valid options
+                        are obtained from the 'thinking_levels' list in discover_capabilities(). After calling, you can
+                        verify the change by running discover_capabilities() and checking the 'current_thinking_level' field.
 
     Returns:
         Confirmation string or error description.
@@ -281,14 +284,24 @@ async def new_chat() -> str:
 
 @mcp.tool()
 async def discover_capabilities() -> str:
-    """Scan Gemini's UI dynamically to discover available models, tools, and options.
+    """Scan Gemini's UI dynamically via Playwright to discover available models, tools, and options.
 
-    This triggers a live scan of the Gemini page to retrieve currently supported
-    models, thinking levels, main tools, and sub-tools, updating the engine's cache.
+    Triggers a live DOM scan of the Gemini web page to retrieve currently supported models,
+    thinking levels, main tools, and sub-tools, updating the engine's capability cache.
+
+    In addition to the available option lists, the returned payload contains the currently active
+    'current_model' and 'current_thinking_level' values currently selected in the UI. This is
+    useful for verifying if an apply_settings() call succeeded (e.g. call discover_capabilities()
+    after calling apply_settings() to confirm the active state has updated).
 
     Returns:
-        JSON string containing the discovered capabilities, including lists of models,
-        thinking levels, and tools.
+        JSON string containing the discovered capabilities:
+        - current_model: The name of the model currently active in the UI
+        - current_thinking_level: The thinking level currently active (or null if unsupported)
+        - models: List of available model options
+        - thinking_levels: List of available thinking levels
+        - main_tools: List of primary tools (Google Search, YouTube, etc.)
+        - sub_tools: Dictionary of secondary tool options
     """
     data = await _post("/browser/discover")
     if data.get("status") == "success":
