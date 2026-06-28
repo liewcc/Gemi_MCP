@@ -107,6 +107,22 @@ DeepSeek 具有严格的机器人检测机制，因此可能需要对每个会�
 
 控制面板的各个标签页可以修改模型、输出文件夹、图片设置、自动化循环，以及切换账号。
 
+### 💡 提示词示例 (如何让你的 AI 助手调用)
+
+由于引擎向外暴露了标准的 MCP 工具，你可以用自然的语言指示你的 AI 助手（如 Claude Code 或 Antigravity）来调用 Gemi_MCP 驱动的浏览器自动化。
+
+下面是一些实际的提示词使用案例，以及它们在后台被 AI 助手转换为 MCP 工具调用的方式：
+
+* **案例 1：修改模型与设置**
+  * *你的输入：* `"叫 gemi 调用 Gemini 3.5 Flash (High) extended，查找……"`
+  * *AI 的转换：* 调用 `apply_settings(model="3.5 Flash", thinking_level="High", service="gemini")`，接着调用 `send_chat(prompt="查找的内容...", service="gemini")`。
+* **案例 2：利用双标签页 (Dual-Tab) 架构进行对比/协同**
+  * *你的输入：* `"叫 gemi 调用 dual tab，做这件事……"`（例如：“叫 gemi 调用 dual tab 同时向 Gemini 和 DeepSeek 询问为什么天空是蓝色的，并整理出两者的异同”）
+  * *AI 的转换：* 分别并发或顺序调用 `send_chat(prompt="...", service="gemini")` 和 `send_chat(prompt="...", service="deepseek")`，最后由 AI 助手将两个返回的结果进行对比并呈现给您。
+* **案例 3：定向免状态路由**
+  * *你的输入：* `"叫 gemi 调用 deepseek，做这件事……"`（例如：“叫 gemi 调用 deepseek 写一段 python script 爬取网页数据”）
+  * *AI 的转换：* 直接调用 `send_chat(prompt="写一段 python script...", service="deepseek")` 路由到 DeepSeek 标签页，这不会中断或重置你当前处于活跃状态的 Gemini 会话。
+
 ---
 
 ## 🔌 （可选）接入 Claude Code / Cursor / Antigravity

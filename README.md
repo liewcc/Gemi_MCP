@@ -124,8 +124,24 @@ happens, Gemi_MCP opens a browser window automatically and pauses until you fini
 - The bottom status bar shows **`● online`** when the engine is ready.
 - Press **`q`** to quit. Closing the window also shuts the engine down cleanly.
 
-The control panel tabs let you change models, output folders, image settings, automation loops,
-and switch between accounts.
+The control panel tabs let you change models, output folders, image settings, automation loops, and switch between accounts.
+
+### 💡 Example Prompts (How to ask your AI assistant)
+
+Since the engine exposes standard MCP tools, you can naturally instruct your AI assistant (e.g. Claude Code or Antigravity) to leverage Gemi_MCP's browser automation. 
+
+Here are some real-world prompting examples and how they translate to MCP tool calls under the hood:
+
+* **Example 1: Changing models & settings**
+  * *What you say:* `"Ask gemi to call Gemini 3.5 Flash (High) extended, search for..."`
+  * *How the AI translates it:* Calls `apply_settings(model="3.5 Flash", thinking_level="High", service="gemini")`, then calls `send_chat(prompt="search query...", service="gemini")`.
+* **Example 2: Leverage Dual-Tab mode**
+  * *What you say:* `"Ask gemi to use dual tab, ask both Gemini and DeepSeek about..."`
+  * *How the AI translates it:* Calls `send_chat(prompt="...", service="gemini")` and `send_chat(prompt="...", service="deepseek")` concurrently or sequentially to compare replies.
+* **Example 3: Direct stateless routing**
+  * *What you say:* `"Ask gemi to call DeepSeek to write a python script for..."`
+  * *How the AI translates it:* Calls `send_chat(prompt="write a python script...", service="deepseek")` directly targeting the DeepSeek tab without affecting your active Gemini session state.
+
 
 ---
 
