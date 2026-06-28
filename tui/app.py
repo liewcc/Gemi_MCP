@@ -501,9 +501,10 @@ class GemiTUI(App):
         ("ctrl+r", "reload_config",  "Reload config"),
     ]
 
-    engine_online:  reactive[bool] = reactive(False)
-    browser_online: reactive[bool] = reactive(False)
-    _update_status: reactive[str]  = reactive("")
+    engine_online:   reactive[bool] = reactive(False)
+    browser_online:  reactive[bool] = reactive(False)
+    _update_status:  reactive[str]  = reactive("")
+    _display_name:   reactive[str]  = reactive("")
 
     def watch_engine_online(self, value: bool) -> None:
         self._update_subtitle()
@@ -701,6 +702,9 @@ class GemiTUI(App):
                 if online:
                     data = r.json()
                     browser = bool(data.get("engine_running"))
+                    dn = data.get("display_name", "")
+                    if dn:
+                        self._display_name = dn
         except Exception:
             pass
         self.engine_online  = online
@@ -733,7 +737,9 @@ class GemiTUI(App):
             upd_part = f"  │  {upd}"
         else:
             upd_part = ""
-        bar_text = f" Engine: {engine}  {browser}  │  {active}{upd_part}  │  q quit · ctrl+r reload "
+        dn = self._display_name
+        acct_str = f"{active}" + (f" ({dn})" if dn and dn != active else "")
+        bar_text = f" Engine: {engine}  {browser}  │  {acct_str}{upd_part}  │  q quit · ctrl+r reload "
         try:
             self.query_one("#status-bar", Static).update(bar_text)
         except Exception:
