@@ -1,1 +1,1 @@
-{"version": "1.2.0", "date": "2026-06-28", "notes": "feat(multiple-tab): user-selectable pre-warm tabs (max 2) with lazy init for remaining services; rename dual-tab to multiple-tab throughout."}
+{"version": "1.2.1", "date": "2026-06-28", "notes": "fix(copilot): remove broken _check_login() post-input check that caused false login_required and engine restarts."}
