@@ -158,8 +158,9 @@ async def download_images(
     prefix: str = "img",
     padding: int = 4,
     start: int = 1,
+    service: Optional[str] = None,
 ) -> str:
-    """Download generated images from the last Gemini response to disk.
+    """Download generated images from the last response to disk.
 
     Opens each image's lightbox dialog, clicks the download button (falling
     back to canvas/blob extraction when needed), deduplicates via perceptual
@@ -174,6 +175,7 @@ async def download_images(
         start:    Starting number for the counter (default 1).
                   The engine auto-tracks the max existing number in save_dir
                   when track_last_file_num is enabled in config.
+        service:  Optional service name to target ("gemini" or "deepseek").
 
     Returns:
         Number of images saved and their file paths.
@@ -182,6 +184,7 @@ async def download_images(
         "save_dir": save_dir,
         "naming": {"prefix": prefix, "padding": padding, "start": start},
         "meta": {},
+        "service": service,
     }
     data = await _post("/browser/download", payload)
     status = data.get("status")
@@ -196,17 +199,20 @@ async def download_images(
 # ── 6. Redo / Regenerate ──────────────────────────────────────────────────────
 
 @mcp.tool()
-async def redo_response() -> str:
-    """Trigger Gemini's Redo (regenerate) action on the last response.
+async def redo_response(service: Optional[str] = None) -> str:
+    """Trigger the Redo (regenerate) action on the last response.
 
-    Clicks the refresh/redo button and monitors until Gemini finishes
-    regenerating.  Use this after a refused or unsatisfactory result before
+    Clicks the refresh/redo button and monitors until it finishes
+    regenerating. Use this after a refused or unsatisfactory result before
     calling download_images again.
+
+    Args:
+        service: Optional service name to target ("gemini" or "deepseek").
 
     Returns:
         Confirmation that the redo action was triggered.
     """
-    data = await _post("/browser/redo")
+    data = await _post("/browser/redo", params={"service": service} if service else None)
     status = data.get("status", "unknown")
     message = data.get("message", "")
     if status == "success":
