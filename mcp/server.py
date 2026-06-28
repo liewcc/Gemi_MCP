@@ -11,12 +11,13 @@ ENGINE_URL = os.environ.get("GEMI_ENGINE_URL", "http://127.0.0.1:18800")
 mcp = FastMCP("gemi-mcp")
 
 
-async def _post(path: str, payload: dict | list | None = None) -> dict:
+async def _post(path: str, payload: dict | list | None = None, params: dict | None = None) -> dict:
     """POST to engine_service and return parsed JSON."""
     async with httpx.AsyncClient() as client:
         resp = await client.post(
             f"{ENGINE_URL}{path}",
             json=payload,
+            params=params,
             timeout=300.0,
         )
         resp.raise_for_status()
@@ -30,25 +31,23 @@ async def apply_settings(
     model: Optional[str] = None,
     tool: str = "default",
     thinking_level: Optional[str] = None,
+    service: Optional[str] = None,
 ) -> str:
-    """Switch Gemini to a specific model, tool, and/or thinking level before generating.
+    """Switch Gemini or DeepSeek to a specific model, tool, and/or thinking level before generating.
 
     Call this before attaching files or submitting a prompt when you need a
-    particular model (e.g. "3.5 Flash", "3.1 Pro"), tool (e.g. "Create image",
-    "Google Search"), or thinking level (e.g. "Low", "Medium", "High", "Extended").
+    particular model, tool, or thinking level.
     Run discover_capabilities() first to see the live list of valid names.
 
-    The engine validates selections against a live scan of the Gemini UI
+    The engine validates selections against a live scan of the UI
     and returns a clear error with available options if any selection is invalid or stale.
 
     Args:
-        model:          Display name of the Gemini model to select (partial match ok).
-        tool:           Display name of the Gemini tool to enable (partial match ok).
+        model:          Display name of the model to select (partial match ok).
+        tool:           Display name of the tool to enable (partial match ok).
                         Defaults to "default" which means "leave tool unchanged".
         thinking_level: Display name of the thinking level to select (e.g. "Low", "Medium", "High", "Extended", partial match ok).
-                        This selects the active model's reasoning/thinking depth (e.g. Standard or Extended). Valid options
-                        are obtained from the 'thinking_levels' list in discover_capabilities(). After calling, you can
-                        verify the change by running discover_capabilities() and checking the 'current_thinking_level' field.
+        service:        Optional service name to target ("gemini" or "deepseek").
 
     Returns:
         Confirmation string or error description.
@@ -57,9 +56,12 @@ async def apply_settings(
         "model": model,
         "tool": tool,
         "thinking_level": thinking_level,
+        "service": service,
     })
     if data.get("status") == "success":
         parts = []
+        if service:
+            parts.append(f"service={service}")
         if model:
             parts.append(f"model={model}")
         if tool and tool.lower() != "default":
@@ -70,11 +72,9 @@ async def apply_settings(
     return f"Error: {data.get('message', 'apply_settings failed')}"
 
 
-# ── 2. File Attachment ────────────────────────────────────────────────────────
-
 @mcp.tool()
-async def attach_files(file_paths: list[str]) -> str:
-    """Attach one or more local files to the current Gemini prompt input.
+async def attach_files(file_paths: list[str], service: Optional[str] = None) -> str:
+    """Attach one or more local files to the current prompt input.
 
     Uses smart incremental sync: files already attached are kept, missing ones
     are added, and extras are removed — minimising redundant uploads.
@@ -82,11 +82,16 @@ async def attach_files(file_paths: list[str]) -> str:
     Args:
         file_paths: Absolute paths to the files to attach.
                     Pass an empty list [] to clear all attachments.
+        service:    Optional service name to target ("gemini" or "deepseek").
 
     Returns:
         Summary of how many files were added / removed.
     """
-    data = await _post("/browser/attach_files", file_paths)
+    data = await _post(
+        "/browser/attach_files",
+        payload=file_paths,
+        params={"service": service} if service else None
+    )
     if data.get("status") == "success":
         return (
             f"Attachments synced: +{data.get('added', 0)} added, "
@@ -99,42 +104,47 @@ async def attach_files(file_paths: list[str]) -> str:
 # ── 3. Prompt Input ───────────────────────────────────────────────────────────
 
 @mcp.tool()
-async def set_prompt(text: str) -> str:
-    """Type a prompt into Gemini's input box without submitting it.
+async def set_prompt(text: str, service: Optional[str] = None) -> str:
+    """Type a prompt into the input box without submitting it.
 
     Use this to stage a prompt before calling submit_response, or to
     pre-fill text before attaching files.
 
     Args:
-        text: The prompt text to place in the Gemini input field.
+        text:    The prompt text to place in the input field.
+        service: Optional service name to target ("gemini" or "deepseek").
 
     Returns:
         Confirmation that the prompt was filled.
     """
-    data = await _post("/browser/prompt", {"text": text})
+    data = await _post("/browser/prompt", {"text": text, "service": service})
     return f"Prompt staged: {str(data)}"
 
 
 # ── 4. Submit & Monitor ───────────────────────────────────────────────────────
 
 @mcp.tool()
-async def submit_response(prompt: Optional[str] = None) -> str:
-    """Submit the current prompt to Gemini and wait for an image response.
+async def submit_response(prompt: Optional[str] = None, service: Optional[str] = None) -> str:
+    """Submit the current prompt and wait for an image or text response.
 
-    Monitors the DOM until Gemini finishes generating, then returns whether an
-    image was produced, the response was refused, quota was exceeded, etc.
+    Monitors the DOM until the response generation finishes, then returns whether it
+    was successful, refused, quota was exceeded, etc.
 
     Call attach_files and set_prompt first if needed, then call this tool.
     Alternatively pass `prompt` here to type and submit in one step.
 
     Args:
-        prompt: Optional prompt text to inject and submit in one shot.
-                If None, submits whatever is already in the input box.
+        prompt:  Optional prompt text to inject and submit in one shot.
+                 If None, submits whatever is already in the input box.
+        service: Optional service name to target ("gemini" or "deepseek").
 
     Returns:
-        Result status and message from the Gemini response monitor.
+        Result status and message from the response monitor.
     """
-    data = await _post("/browser/submit", {"text": prompt} if prompt else None)
+    payload = {"text": prompt} if prompt else {}
+    if service:
+        payload["service"] = service
+    data = await _post("/browser/submit", payload if payload else None)
     status = data.get("status", "unknown")
     message = data.get("message", "")
     return f"[{status}] {message}" if message else f"[{status}]"
@@ -207,29 +217,30 @@ async def redo_response() -> str:
 # ── 7. Text Chat (existing) ───────────────────────────────────────────────────
 
 @mcp.tool()
-async def send_chat(prompt: str, new_conversation: bool = True) -> str:
-    """Send a text prompt to Gemini and return its text reply.
+async def send_chat(prompt: str, new_conversation: bool = True, service: Optional[str] = None) -> str:
+    """Send a text prompt to Gemini or DeepSeek and return its text reply.
 
     This is a full round-trip: types the prompt, submits it, waits for
-    Gemini to finish, and returns the text content of the response.
+    the service to finish, and returns the text content of the response.
     Use submit_response + download_images instead when you need images.
 
-    Requires engine_service.py to be running on port 18800 with an active
-    logged-in Gemini session.
-
     Args:
-        prompt:           The text message to send to Gemini.
-        new_conversation: If True (default), starts a fresh Gemini chat before
-                          sending — guarantees clean context. Set False to
-                          continue an existing multi-turn conversation.
+        prompt:           The text message to send.
+        new_conversation: If True (default), starts a fresh chat before
+                          sending. Set False to continue an existing conversation.
+        service:          Optional service name to target ("gemini" or "deepseek").
 
     Returns:
-        Gemini's text reply.
+        The text reply.
     """
+    payload = {"text": prompt, "new_conversation": new_conversation}
+    if service:
+        payload["service"] = service
+        
     async with httpx.AsyncClient() as client:
         resp = await client.post(
             f"{ENGINE_URL}/browser/chat",
-            json={"text": prompt, "new_conversation": new_conversation},
+            json=payload,
             timeout=240.0,
         )
         resp.raise_for_status()
@@ -237,19 +248,23 @@ async def send_chat(prompt: str, new_conversation: bool = True) -> str:
 
     if data.get("status") == "success":
         return data.get("text", "")
-    raise RuntimeError(data.get("message", "Gemini chat failed with unknown error"))
+    raise RuntimeError(data.get("message", "Chat failed with unknown error"))
 
 
 @mcp.tool()
-async def get_last_response() -> str:
-    """Read whatever Gemini has generated so far in the current chat.
+async def get_last_response(service: Optional[str] = None) -> str:
+    """Read whatever the service has generated so far in the current chat.
 
     Use this after send_chat times out — the browser tab may still be generating.
     Returns the current response text and a 'done' flag.
     Poll every few seconds until done=True.
+
+    Args:
+        service: Optional service name to target ("gemini" or "deepseek").
     """
+    params = {"service": service} if service else None
     async with httpx.AsyncClient() as client:
-        resp = await client.get(f"{ENGINE_URL}/browser/last_response", timeout=10.0)
+        resp = await client.get(f"{ENGINE_URL}/browser/last_response", params=params, timeout=10.0)
         resp.raise_for_status()
         data = resp.json()
     done = data.get("done", False)
@@ -260,21 +275,24 @@ async def get_last_response() -> str:
 # ── 8. Reset / New Chat ───────────────────────────────────────────────────────
 
 @mcp.tool()
-async def new_chat() -> str:
+async def new_chat(service: Optional[str] = None) -> str:
     """Clear conversation history and start a new chat session.
 
     Use this to reset conversation state, switch contexts, or isolate a new
-    task from prior interactions. This clicks the "New chat" button in Gemini.
+    task from prior interactions. This clicks the "New chat" button.
 
     IMPORTANT — verify before conversing: after calling new_chat(), always
     confirm which service is active by sending a self-identification prompt
     (e.g. send_chat("What is your name?")) and checking the reply before
     proceeding with real tasks. This guards against stale service state.
 
+    Args:
+        service: Optional service name to target ("gemini" or "deepseek").
+
     Returns:
         Confirmation message.
     """
-    data = await _post("/browser/new_chat")
+    data = await _post("/browser/new_chat", params={"service": service} if service else None)
     if data.get("status") == "success":
         return f"New chat started: {data.get('message', '')}"
     raise RuntimeError(data.get("message", "new_chat failed"))
@@ -283,27 +301,23 @@ async def new_chat() -> str:
 # ── 9. Discover Capabilities ──────────────────────────────────────────────────
 
 @mcp.tool()
-async def discover_capabilities() -> str:
-    """Scan Gemini's UI dynamically via Playwright to discover available models, tools, and options.
+async def discover_capabilities(service: Optional[str] = None) -> str:
+    """Scan the UI dynamically via Playwright to discover available models, tools, and options.
 
-    Triggers a live DOM scan of the Gemini web page to retrieve currently supported models,
+    Triggers a live DOM scan of the web page to retrieve currently supported models,
     thinking levels, main tools, and sub-tools, updating the engine's capability cache.
 
     In addition to the available option lists, the returned payload contains the currently active
     'current_model' and 'current_thinking_level' values currently selected in the UI. This is
-    useful for verifying if an apply_settings() call succeeded (e.g. call discover_capabilities()
-    after calling apply_settings() to confirm the active state has updated).
+    useful for verifying if an apply_settings() call succeeded.
+
+    Args:
+        service: Optional service name to target ("gemini" or "deepseek").
 
     Returns:
-        JSON string containing the discovered capabilities:
-        - current_model: The name of the model currently active in the UI
-        - current_thinking_level: The thinking level currently active (or null if unsupported)
-        - models: List of available model options
-        - thinking_levels: List of available thinking levels
-        - main_tools: List of primary tools (Google Search, YouTube, etc.)
-        - sub_tools: Dictionary of secondary tool options
+        JSON string containing the discovered capabilities.
     """
-    data = await _post("/browser/discover")
+    data = await _post("/browser/discover", params={"service": service} if service else None)
     if data.get("status") == "success":
         import json
         return json.dumps(data.get("data", {}), indent=2)

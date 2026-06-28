@@ -6,6 +6,28 @@
 
 ---
 
+## Current Task — Dual-Tab Architecture (Gemini + DeepSeek simultaneous tabs) COMPLETE ✓
+
+**Status:** IMPLEMENTED AND VERIFIED END-TO-END.
+
+**Decision log & Design Details:**
+- **Concurrency Loophole Fix:** Rather than using the engine's dynamic active page `self._e._page` (which led to crossover bugs when running concurrent background tasks), we modified `engine/core/providers/base.py`'s `ProviderAdapter` to store a local `self._page_ref` that binds each provider to its own page. We also added a fallback to `self._e._page` to maintain 100% backward compatibility for single-tab mode (used by GemiPersonaPro_DT).
+- **Concurrent Pre-warming:** In dual-tab mode, `browser_engine.py` opens two pages concurrently in `start()` using `asyncio.gather()`. DeepSeek pre-warming failure is non-fatal (logged, Gemini always completes).
+- **Stateless API Routing:** We added the `service` parameter (supporting `"gemini"` and `"deepseek"`) to request models and query params on the REST endpoints. We implemented a `select_service` helper in `engine_service.py` that switches active references on the fly.
+- **MCP Surface:** We propagated the `service` argument to all MCP tools.
+- **TUI Injection:** `tui/app.py` passes `BROWSER_ENGINE_DUAL_TAB=true` to the engine subprocess environment.
+
+**Files changed (5 in parent, 3 in submodule):**
+1. `engine/core/providers/base.py` (submodule) — added `_page_ref` setter and getter
+2. `engine/core/browser_engine.py` (submodule) — dual-tab init, switch_provider, stop
+3. `engine/core/engine_service.py` (submodule) — Pydantic models + query params + `select_service` routing helper
+4. `mcp/server.py` — `service` parameter added to all MCP tools
+5. `tui/app.py` — inject `BROWSER_ENGINE_DUAL_TAB=true` in engine subprocess environment
+
+**Verification:** Verified via an automated integration test script (`test_dual_tab.py`) that pre-warmed both tabs, performed capability discovery on both, and successfully executed concurrent independent chats.
+
+---
+
 ## Current Task — Correct Windows Terminal Launcher (run.vbs) COMPLETE ✓
 
 **Status:** Diagnosed and corrected Windows Terminal launching logic inside `run.vbs` to ensure compatibility and robustness on Windows 11.
@@ -345,5 +367,5 @@ Constraint: Whatever solution must work for BOTH Gemi_MCP and GemiPersonaPro_DT
 these are data dirs and must NEVER be deleted regardless of code cleanup.
 
 ## Last Updated
-2026-06-22 by Google Antigravity (corrected run.vbs)
+2026-06-28 by Google Antigravity (implemented dual-tab architecture)
 

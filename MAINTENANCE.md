@@ -8,6 +8,17 @@
 > top using the template at the bottom. Keep entries factual and short.
 
 ---
+## 2026-06-28 — Implement Dual-Tab Architecture (Simultaneous Gemini + DeepSeek tabs)
+
+**Why:** Switching services in single-tab mode destroys DOM state (chat history, settings) and forces a full 5–15s page reload. Having both tabs warm concurrently solves this and enables stateless routing.
+**Changes:**
+- `engine/core/providers/base.py`: Bound each provider to its own tab using `_page_ref`, resolving a critical async background tab crossover concurrency bug.
+- `engine/core/browser_engine.py`: Initialized dual pages and pre-warmed both tabs concurrently on start when `BROWSER_ENGINE_DUAL_TAB=true` is set.
+- `engine/core/engine_service.py`: Added Pydantic and query param `service` routing support, using a shared `select_service` helper.
+- `mcp/server.py`: Propagated `service` to all MCP tools.
+- `tui/app.py`: Injected `BROWSER_ENGINE_DUAL_TAB="true"` environment variable when spawning the engine service.
+**Verified:** Ran an automated integration test script (`test_dual_tab.py`) that pre-warmed both tabs, performed capability discovery on both, and successfully executed concurrent independent chats.
+
 ## 2026-06-22 — Correct Windows Terminal Launcher (run.vbs)
 
 **Why:** Windows Terminal launch fails on some Windows 11 systems due to the app execution alias `wt` not resolving inside VBScript, and global error swallowing hides failures.

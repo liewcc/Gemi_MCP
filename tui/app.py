@@ -635,6 +635,7 @@ class GemiTUI(App):
         _env["BROWSER_ENGINE_DATA_DIR"] = _core_path
         _env["BROWSER_ENGINE_DATA_SUBDIR"] = "runtime"
         _env["BROWSER_ENGINE_PROJECT_ROOT"] = str(ROOT)
+        _env["BROWSER_ENGINE_DUAL_TAB"] = "true"
         self._service_proc = subprocess.Popen(
             [sys.executable, "-u", str(ROOT / "engine" / "core" / "engine_service.py")],
             stdout=subprocess.PIPE,
