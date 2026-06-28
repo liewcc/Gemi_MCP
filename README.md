@@ -80,9 +80,9 @@ You only need two things installed on **Windows**:
 3. That's it. Both logins are saved to your browser profile — you won't have to log in again
    unless a service signs you out.
 
-### 🤖 Dual-Tab Architecture & Switching
+### 🤖 Multiple-Tab Architecture & Switching
 
-Gemi_MCP has evolved from a single-tab model to a high-performance **Dual-Tab Architecture** (enabled in MCP mode via `BROWSER_ENGINE_DUAL_TAB=true`, which the TUI sets automatically). 
+Gemi_MCP has evolved from a single-tab model to a **Multiple-Tab Architecture**. In the TUI's ENGINE OPERATIONS panel, select up to 2 services to pre-warm at startup (default: Gemini + DeepSeek). Any other service opens its tab automatically on the first MCP call that targets it.
 
 #### ✨ Key Benefits
 - **Instant Switching:** Switching services now takes milliseconds using Playwright's `bring_to_front()`, compared to the 5–15s reload delay in the old single-tab mode.

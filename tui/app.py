@@ -17,7 +17,7 @@ from textual.containers import Center, Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.reactive import reactive
 from textual.widgets import (
-    Button, Header, Input, Label,
+    Button, Checkbox, Header, Input, Label,
     Rule, Select, Static, Switch, TabbedContent, TabPane, TextArea,
 )
 
@@ -246,6 +246,15 @@ class EngineTab(VerticalScroll):
         yield SettingRow("◎  Headless mode",      Switch(c.get("headless", True),             id="sw-headless"))
         yield SettingRow("▷  Auto-start browser", Switch(c.get("auto_start_browser", True),   id="sw-auto_start"))
         yield SettingRow("↺  Auto-continue loop", Switch(c.get("auto_continue_loop", False),  id="sw-auto_continue"))
+
+        # ── PRE-WARM TABS (max 2; others open lazily on first MCP call) ──
+        _prewarm_saved: list = c.get("prewarm_services", ["gemini", "deepseek"])
+        yield Label("Pre-warm tabs (max 2):", classes="setting-label")
+        with Horizontal(classes="action-row"):
+            yield Checkbox("Gemini",   "gemini"   in _prewarm_saved, id="chk-prewarm-gemini",   disabled=True)
+            yield Checkbox("DeepSeek", "deepseek" in _prewarm_saved, id="chk-prewarm-deepseek")
+            yield Checkbox("Copilot",  "copilot"  in _prewarm_saved, id="chk-prewarm-copilot")
+            yield Checkbox("ChatGPT",  "chatgpt"  in _prewarm_saved, id="chk-prewarm-chatgpt")
 
         # ── ACCOUNT ACTIONS (mirrors GemiPersonaPro_DT setup panel) ──
         accounts     = load_login_lookup()
@@ -635,7 +644,8 @@ class GemiTUI(App):
         _env["BROWSER_ENGINE_DATA_DIR"] = _core_path
         _env["BROWSER_ENGINE_DATA_SUBDIR"] = "runtime"
         _env["BROWSER_ENGINE_PROJECT_ROOT"] = str(ROOT)
-        _env["BROWSER_ENGINE_DUAL_TAB"] = "true"
+        _prewarm_list = load_config().get("prewarm_services", ["gemini", "deepseek"])
+        _env["BROWSER_ENGINE_PREWARM"] = ",".join(_prewarm_list)
         self._service_proc = subprocess.Popen(
             [sys.executable, "-u", str(ROOT / "engine" / "core" / "engine_service.py")],
             stdout=subprocess.PIPE,
@@ -755,6 +765,42 @@ class GemiTUI(App):
                     self.notify(f"Saved {accounts[idx]['username']}: auto_delete = {event.value}", timeout=2)
             except (ValueError, IndexError):
                 self.notify("Error saving auto_delete", severity="error")
+
+    _PREWARM_IDS = {
+        "chk-prewarm-gemini":   "gemini",
+        "chk-prewarm-deepseek": "deepseek",
+        "chk-prewarm-copilot":  "copilot",
+        "chk-prewarm-chatgpt":  "chatgpt",
+    }
+
+    @on(Checkbox.Changed)
+    def on_checkbox_changed(self, event: Checkbox.Changed) -> None:
+        if not self._mounted:
+            return
+        wid = event.checkbox.id or ""
+        if wid not in self._PREWARM_IDS:
+            return
+
+        # Collect current checked state across all four checkboxes
+        checked: list[str] = []
+        for cid, svc in self._PREWARM_IDS.items():
+            cb = self.query_one(f"#{cid}", Checkbox)
+            checked.append(svc) if cb.value else None
+
+        # Enforce max 2 (gemini always stays on, so effective user cap is 1 more)
+        if len(checked) > 2:
+            event.checkbox.value = False  # revert the just-checked box
+            self.notify("Max 2 services can be pre-warmed.", severity="warning", timeout=3)
+            return
+
+        # gemini must always be checked — prevent unchecking
+        if self._PREWARM_IDS.get(wid) == "gemini" and not event.value:
+            event.checkbox.value = True
+            self.notify("Gemini is the default tab and cannot be removed.", timeout=3)
+            return
+
+        save_config({"prewarm_services": checked})
+        self.notify(f"Pre-warm set saved: {checked}  (takes effect on next engine start)", timeout=4)
 
     @on(Input.Submitted)
     def on_input_submitted(self, event: Input.Submitted) -> None:

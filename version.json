@@ -1,1 +1,1 @@
-{"version": "1.1.0", "date": "2026-06-28", "notes": "feat(dual-tab): integrate dual-tab browser architecture, launcher fixes, TUI optimizations, and profile management improvements."}
+{"version": "1.2.0", "date": "2026-06-28", "notes": "feat(multiple-tab): user-selectable pre-warm tabs (max 2) with lazy init for remaining services; rename dual-tab to multiple-tab throughout."}

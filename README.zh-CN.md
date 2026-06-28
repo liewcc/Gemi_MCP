@@ -68,9 +68,9 @@
 
 3. 搞定。两个服务的登录状态都会保存到你的浏览器配置文件中 —— 除非服务把你登出，否则无需再次登录。
 
-### 🤖 双标签页架构 (Dual-Tab Architecture) 与切换
+### 🤖 多标签页架构 (Multiple-Tab Architecture) 与切换
 
-Gemi_MCP 现已升级为高性能的**双标签页架构**（在 MCP 模式下通过环境变量 `BROWSER_ENGINE_DUAL_TAB=true` 启用，TUI 会自动设置）。
+Gemi_MCP 已升级为**多标签页架构**。在 TUI 的 ENGINE OPERATIONS 面板中，最多可勾选 2 个服务在启动时预热（默认：Gemini + DeepSeek）；其余服务在首次 MCP 调用时自动开启标签页。
 
 #### ✨ 核心优势
 - **毫秒级切换：** 服务切换通过 Playwright 的 `bring_to_front()` 在毫秒级内完成，彻底告别了旧单标签页模式下 5-15 秒的页面重载延迟。
