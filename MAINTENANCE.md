@@ -8,6 +8,24 @@
 > top using the template at the bottom. Keep entries factual and short.
 
 ---
+## 2026-06-28 — Copilot provider + connect_over_cdp + multiple-tab pre-warm (v1.2.1 / engine v1.3.1)
+
+**Why:** Add Microsoft Copilot as a third service. Required switching the browser launch from `launch_persistent_context` to Chrome subprocess + `connect_over_cdp` to bypass Microsoft's bot detection.
+
+**Changes:**
+- `engine/core/providers/copilot.py` (NEW): full CopilotProvider with confirmed DOM selectors (`[data-testid="ai-message-body"]` for response, `button[aria-label="Stop"]` for generation indicator).
+- `engine/core/browser_engine.py`: Chrome subprocess launch with minimal flags → `connect_over_cdp`; `_providers` dict dynamic; `ensure_page()` domain-reuse scan; `_PROVIDER_REGISTRY` pattern.
+- `engine/core/engine_service.py`: `select_service` validates against registry; `capture_dom` accepts `?service=` param.
+- `engine/dom_debugger.py`: `--service` CLI arg.
+- `tui/app.py`: pre-warm checkbox group (max 2); `BROWSER_ENGINE_PREWARM` env var replaces `BROWSER_ENGINE_DUAL_TAB`.
+
+**Critical gotcha — `--no-sandbox` must NOT be in Chrome subprocess args.** This flag is a known automation signal; Microsoft's bot detection blocks any session launched with it. Removing it was the decisive fix.
+
+**`_check_login()` post-input check removed from `new_chat()`.** The `sidebar-settings-button` avatar selector was unreliable (returned false even when logged in), causing false `login_required` → `_relaunch_headed()` → engine restarts. Now: input visible = logged in.
+
+**Verified:** `send_chat(service="copilot")` → live Copilot response confirmed end-to-end via MCP.
+
+---
 ## 2026-06-28 — Bump version numbers to 1.1.0 (Gemi_MCP) and 1.2.0 (Gemi_Engine)
 
 **Why:** Update version files to reflect the new Dual-Tab Architecture release.
