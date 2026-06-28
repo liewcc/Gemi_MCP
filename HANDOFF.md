@@ -6,6 +6,57 @@
 
 ---
 
+## DOM Analysis Workflow (read before writing any new provider)
+
+When you need to discover CSS selectors for a new service, follow this workflow to minimise
+Claude token usage:
+
+### Step 1 — Capture the DOM
+
+**The browser must be in headed mode** (user can see the window). User navigates to the
+exact UI state they want to capture (e.g. menu open, message visible, settings panel showing).
+
+Two capture methods:
+
+**A. dom_debugger (recommended for hover/menu states):**
+```
+python engine/dom_debugger.py --service <name>
+```
+Then user presses **F9 (global hotkey)** — works from any window, mouse stays in place so
+hover menus remain open. Output: `data/dom_debug_<name>.html`
+
+**B. curl (quick, no hover):**
+```
+curl -X POST "http://127.0.0.1:18800/browser/capture_dom?service=<name>"
+```
+Output: `data/dom_debug_<name>.html`
+
+**Important:** Always pass `--service <name>` / `?service=<name>`. Without it, the engine
+captures whatever tab is currently active (often Gemini), not the target service.
+
+### Step 2 — Analyse with Gemi (saves Claude tokens)
+
+Pass the captured file to Gemi via Agy, not to Claude directly:
+
+```python
+mcp__agy__ask_antigravity(
+    prompt="Read D:\\AI\\Gemi_MCP\\data\\dom_debug_copilot.html and find selectors for: ...",
+    add_dirs=["D:\\AI\\Gemi_MCP\\data"],
+    model="Gemini 3.1 Pro (High)"
+)
+```
+
+Or use the `Agent` tool with `subagent_type="Explore"` pointing at the data/ directory.
+Avoid reading large HTML files directly into the main Claude context.
+
+### Step 3 — Verify selectors live
+
+After writing the provider code, send one test message via MCP (`send_chat`) with
+`new_conversation=False`. Check the engine log (`runtime/engine.log`) for selector errors.
+Capture a second DOM *after* a message exchange to verify the response container selector.
+
+---
+
 ## Current Task — Copilot Provider (Phase 0 + Phase 1) ✓ COMPLETE
 
 **Status:** IMPLEMENTED, TESTED, AND COMMITTED (v1.2.1 / engine v1.3.1)
