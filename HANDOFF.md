@@ -367,5 +367,5 @@ Constraint: Whatever solution must work for BOTH Gemi_MCP and GemiPersonaPro_DT
 these are data dirs and must NEVER be deleted regardless of code cleanup.
 
 ## Last Updated
-2026-06-28 by Google Antigravity (implemented dual-tab architecture)
+2026-06-28 by Google Antigravity (implemented dual-tab architecture & bumped version numbers to 1.1.0/1.2.0)
 

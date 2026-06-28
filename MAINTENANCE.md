@@ -8,6 +8,14 @@
 > top using the template at the bottom. Keep entries factual and short.
 
 ---
+## 2026-06-28 — Bump version numbers to 1.1.0 (Gemi_MCP) and 1.2.0 (Gemi_Engine)
+
+**Why:** Update version files to reflect the new Dual-Tab Architecture release.
+**Changes:**
+- `engine/version.json`: Bumped version to `1.2.0` with release notes for the dual-tab feature.
+- `version.json`: Bumped version to `1.1.0` with release notes for dual-tab, launcher, and TUI fixes.
+**Verified:** Checked the version values in files and successfully pushed to remote repositories.
+
 ## 2026-06-28 — Implement Dual-Tab Architecture (Simultaneous Gemini + DeepSeek tabs)
 
 **Why:** Switching services in single-tab mode destroys DOM state (chat history, settings) and forces a full 5–15s page reload. Having both tabs warm concurrently solves this and enables stateless routing.
