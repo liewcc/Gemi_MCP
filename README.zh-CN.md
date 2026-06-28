@@ -68,13 +68,19 @@
 
 3. 搞定。两个服务的登录状态都会保存到你的浏览器配置文件中 —— 除非服务把你登出，否则无需再次登录。
 
-### 🤖 在 Gemini 和 DeepSeek 之间切换
+### 🤖 双标签页架构 (Dual-Tab Architecture) 与切换
 
-引擎支持两种服务：**Gemini**（默认）和 **DeepSeek**。
+Gemi_MCP 现已升级为高性能的**双标签页架构**（在 MCP 模式下通过环境变量 `BROWSER_ENGINE_DUAL_TAB=true` 启用，TUI 会自动设置）。
 
-切换是通过 MCP 的 `switch_service` 工具完成的（你的 AI 助手会自动为你调用该工具）。
-首次使用时，引擎会打开一个浏览器窗口，以便你登录 DeepSeek 账号。
-之后，会话会自动保存 —— 除非 DeepSeek 把你登出，否则不会再次要求你登录。
+#### ✨ 核心优势
+- **毫秒级切换：** 服务切换通过 Playwright 的 `bring_to_front()` 在毫秒级内完成，彻底告别了旧单标签页模式下 5-15 秒的页面重载延迟。
+- **状态完美保留：** 两个服务的 DOM 状态、聊天历史 and 设置均会被保留在各自的标签页中，切换服务商时不再丢失任何上下文。
+- **真正并发执行：** 每个服务商在后台绑定独立的页面引用（`_page_ref`），使得请求可以安全地路由到任意服务，避免了异步交叉感染 Bug。
+
+#### ⚙️ 工作原理
+- **并发启动：** 引擎在启动时使用 `asyncio.gather()` 并发打开并预热 Gemini 和 DeepSeek 标签页，共用同一个浏览器上下文。
+- **参数支持：** 所有主要的 MCP 工具（`send_chat`、`new_chat`、`apply_settings`、`download_images`、`redo_response`、`discover_capabilities`）现均支持一个可选的 `service` 参数（可用值：`"gemini"` 或 `"deepseek"`）。
+- **默认机制：** 若省略 `service` 参数，请求将默认路由至当前活动的默认服务（可通过 `switch_service` 工具变更）。
 
 ### 🔐 DeepSeek 验证 —— 浏览器弹出时该怎么做
 

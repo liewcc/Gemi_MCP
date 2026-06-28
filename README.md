@@ -80,14 +80,20 @@ You only need two things installed on **Windows**:
 3. That's it. Both logins are saved to your browser profile — you won't have to log in again
    unless a service signs you out.
 
-### 🤖 Switching between Gemini and DeepSeek
+### 🤖 Dual-Tab Architecture & Switching
 
-The engine supports two services: **Gemini** (default) and **DeepSeek**.
+Gemi_MCP has evolved from a single-tab model to a high-performance **Dual-Tab Architecture** (enabled in MCP mode via `BROWSER_ENGINE_DUAL_TAB=true`, which the TUI sets automatically). 
 
-Switching is done via the MCP `switch_service` tool (your AI assistant calls this for you).
-On first use, the engine opens a browser window so you can log into your DeepSeek account.
-After that, the session is saved automatically — you won't be asked to log in again unless
-DeepSeek signs you out.
+#### ✨ Key Benefits
+- **Instant Switching:** Switching services now takes milliseconds using Playwright's `bring_to_front()`, compared to the 5–15s reload delay in the old single-tab mode.
+- **State Preservation:** DOM state, chat history, and settings are retained on both pages. No more losing context when toggling providers.
+- **True Concurrency:** Requests can be routed to either service without blocking or crossover interference, as each provider is bound to a dedicated page reference (`_page_ref`).
+
+#### ⚙️ How It Works
+- **Startup:** The engine uses `asyncio.gather()` to concurrently open and pre-warm both Gemini and DeepSeek tabs in a single browser context.
+- **Usage:** All major MCP tools (`send_chat`, `new_chat`, `apply_settings`, `download_images`, `redo_response`, `discover_capabilities`) now support an optional `service` parameter (values: `"gemini"` or `"deepseek"`).
+- **Default/Fallback:** If the `service` parameter is omitted, the request targets the active service (changed via the `switch_service` tool).
+
 
 ### 🔐 DeepSeek verification — what to do when the browser pops up
 
